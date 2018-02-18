@@ -35,7 +35,7 @@ public:
 PathPlanner::PathPlanner(ros::NodeHandle &nh) {
     // Setting the row of path_points which is the current target setpoint
     current_point = 0;
-    threshold_switch = 0.8;
+    threshold_switch = 0.1;
 
     // Generating a path for the bot to follow. (x,y) coordinates:
     path_points     << 1 << 0 << endr
@@ -73,7 +73,10 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
     setpoint_y = path_points(current_point, 1);
 
     double error = (setpoint_x - pos_x) * (setpoint_x - pos_x) + (setpoint_y - pos_y) * (setpoint_y - pos_y);
+    std::cout << "Setpoint (x,y) =  (" << setpoint_x << ", " << setpoint_y << ")" << std::endl;
+    std::cout << "Position (x,y) =  (" << pos_x << ", " << pos_y << ")" << std::endl;
     std::cout << "Error: " << error << std::endl;
+
 
     if (error < threshold_switch){
         // Switch setpoint
@@ -86,16 +89,15 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
     cmd_setpoint.y = setpoint_y;
     cmd_setpoint.z = 0;
 
-    cmd_setpoint_smooth.x = setpoint_x;
-    cmd_setpoint_smooth.y = setpoint_y;
+    cmd_setpoint_smooth.x = pos_x + 0.01 * setpoint_x;
+    cmd_setpoint_smooth.y = pos_y + 0.01 * setpoint_y;
     cmd_setpoint_smooth.z = 0;
+    std::cout << "Smooth setpoint (x,y) =  (" << pos_x + 0.01 * setpoint_x << ", " << pos_y + 0.01 * setpoint_y << ")" << std::endl;
 
     pub_point.publish(cmd_setpoint);
     pub_point_smooth.publish(cmd_setpoint_smooth);
 
 }
-
-
 
 
 int main(int argc, char** argv){
