@@ -12,6 +12,7 @@
 #include <vector>
 #include <math.h>
 #include <armadillo>
+#include <std_msgs/Float32.h>
 
 using namespace arma;
 
@@ -21,8 +22,9 @@ private:
     ros::Publisher pub_vel;
     ros::Publisher pub_point;
     ros::Publisher pub_point_smooth;
+    ros::Publisher pub_x_y_yaw;
     mat path_points;
-    double pos_x, pos_y, ori_z, ang_z, setpoint_x, setpoint_y;
+    double pos_x, pos_y, ang_z, setpoint_x, setpoint_y;
     int current_point;
     double threshold_switch;
 public:
@@ -55,6 +57,7 @@ PathPlanner::PathPlanner(ros::NodeHandle &nh) {
     pub_vel = nh.advertise<geometry_msgs::Twist>("/mobile_base/commands/velocity",1);
     pub_point = nh.advertise<geometry_msgs::Point>("/pathplanner/setpoint",1);
     pub_point_smooth = nh.advertise<geometry_msgs::Point>("/pathplanner/setpoint_smooth",1);
+    pub_x_y_yaw = nh.advertise<geometry_msgs::Point>("pathplanner/x_y_yaw",1);
 
 }
 
@@ -63,11 +66,10 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
 
     geometry_msgs::Point cmd_setpoint;
     geometry_msgs::Point cmd_setpoint_smooth;
+    geometry_msgs::Point cmd_x_y_yaw;
 
     pos_x = poseMsg->pose.pose.position.x;
     pos_y = -(poseMsg->pose.pose.position.y);
-    ori_z = poseMsg->pose.pose.orientation.z;
-    ang_z = ori_z*2.19;
 
     setpoint_x = path_points(current_point, 0);
     setpoint_y = path_points(current_point, 1);
@@ -96,6 +98,21 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
 
     pub_point.publish(cmd_setpoint);
     pub_point_smooth.publish(cmd_setpoint_smooth);
+
+    // Calculating orientation [-PI, PI]
+    float x = poseMsg->pose.pose.orientation.x;
+    float y = poseMsg->pose.pose.orientation.y;
+    float z = poseMsg->pose.pose.orientation.z;
+    float w = poseMsg->pose.pose.orientation.w;
+
+
+    ang_z = -atan2((2.0 * (w*z + x*y)), (1.0 - 2.0 * (y*y + z*z)));
+    std::cout << "Angle: " << ang_z << std::endl;
+
+    cmd_x_y_yaw.x = pos_x;
+    cmd_x_y_yaw.y = pos_y;
+    cmd_x_y_yaw.z = ang_z;
+    pub_x_y_yaw.publish(cmd_x_y_yaw);
 
 }
 
