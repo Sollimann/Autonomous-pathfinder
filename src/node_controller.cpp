@@ -39,13 +39,6 @@ class Control{
             //Heading gain
             static double Kp_ang = 0.1;
 
-            //callback updates set point position in x and y
-            sub_setpoint = nh.subscribe("/pathplanner/setpoint_smooth",1,&Control::get_setpoint, this);
-            sub_position = nh.subscribe("/odom",1,&PathPlanner::get_position, this);
-
-            //pub
-            pub_control_speed = nh.advertise<geometry_msgs::Twist>("/mobile_base/commands/velocity",1);
-
 
             //Functions
 
@@ -56,6 +49,21 @@ class Control{
             void calculate_speed();
 
 };
+
+
+
+//Constructor
+void Control::Control(ros::NodeHandle nh) {
+
+    PI = 3.14159265359;
+    //callback updates set point position in x and y
+    sub_setpoint = nh.subscribe("/pathplanner/setpoint_smooth",1,&Control::get_setpoint, this);
+    sub_position = nh.subscribe("/odom",1,&PathPlanner::get_position, this);
+
+    //pub
+    pub_control_speed = nh.advertise<geometry_msgs::Twist>("/mobile_base/commands/velocity",1);
+
+}
 
             //Subscribes to current position
             void Control::get_position( const nav_msgs::OdometryConstPtr& posMsg) {
@@ -69,6 +77,7 @@ class Control{
                 float z = poseMsg->pose.pose.orientation.z;
                 float w = poseMsg->pose.pose.orientation.w;
 
+                //[-pi,pi]
                 ang_z = atan2((2.0 * (w*z + x*y)), (1.0 - 2.0 * (y*y + z*z)));
                 std::cout << "ang: " << ang_z << std::endl;
 
@@ -86,6 +95,8 @@ class Control{
 
                 set_x = setpointMsg->x;
                 set_y = setpointMsg->y;
+
+                //[-pi,pi]
                 set_z = atan2(y,x);   //calculate setpoint for the angle
 
                 std::cout << "setpoint_x: " << set_x << std::endl;
@@ -96,51 +107,25 @@ class Control{
 
             void Control::calculate_speed() {
 
-                //setpoint in 2 or 3 quadrant
-                //orientation in 2 or 3 quadrant
-                if (set_z < 0 && ang_z < 0){
-
-                    error_z = set_z - ang_z;
-
+                error_z = set_z - ang_z;
+                // Yaw angle is defined as [0, 2pi], so the residuals can not be less than or grater than +-pi:
+                if (error_z < -PI)
+                {
+                    error_z += 2*PI;
                 }
-                //setpoint in 2 or 3 quadrant
-                //orientation in 1 or 4 quadrant
-                else if (set_z < 0 && ang_z > 0){
-
-                    error_z = min(,)
-
+                if (error_z >= PI)
+                {
+                    error_z -= 2*PI;
                 }
-                //setpoint in 1 or 4 quadrant
-                //orientation in 1 or 4 quadrant
-                else if (set_z > 0 && ang_z > 0){
-
-                    error_z = set_z - ang_z;
-
-                }
-                //setpoint in 1 or 4 quadrant
-                //orientation in 2 or 3 quadrant
-                else {
-
-
-                }
+            }
 
                 error_x = abs(set_x) - abs(pos_x);
-                error_y = abs(set_y - pos_y;
-                error_dist = sqrt(error_x^2 + error_y^2);
-
-
-
-
-                //Calculate proper angle error
-
-
-                error_z =   set_z - ang_z;
-
+                error_y = abs(set_y) - abs(pos_y);
+                error_dist = sqrt((error_x)^2 + (error_y)^2);
 
                 //P-controller
                 trans_x = Kp_fwd * error_dist;
                 trans_z = Kp_ang * error_z;
-
 
                 geometry_msgs::Twist base_cmd;
                 base_cmd.linear.x = trans_x;
