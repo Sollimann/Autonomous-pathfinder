@@ -1,7 +1,3 @@
-//
-// Created by sondrehaug on 19.02.18.
-//
-
 #include <ros/ros.h>
 #include <geometry_msgs/Twist.h>
 #include <geometry_msgs/Point.h>
@@ -30,6 +26,7 @@ private:
 
 public:
     Watchdog();
+    void velocityWatchdog(const geometry_msgs::Twist& velMsg);
 };
 
 
@@ -49,20 +46,25 @@ void Watchdog::velocityWatchdog(const geometry_msgs::Twist& velMsg){
     cmd_vel = velMsg;
 
     if (velMsg.linear.x > max_trans_vel){
-        velMsg.linear.x = max_trans_vel;
+        cmd_vel.linear.x = max_trans_vel;
+        std::cout << "Linear x velocity exceeds limit" << std::endl;
     }
     if (velMsg.linear.x < -max_trans_vel){
-        velMsg.linear.x = -max_trans_vel;
+        cmd_vel.linear.x = -max_trans_vel;
+        std::cout << "Linear x velocity exceeds limit" << std::endl;
     }
-    if (velMsg.angular.x > max_rot_vel){
-        velMsg.angular.x = max_rot_vel;
+    if (velMsg.angular.z > max_rot_vel){
+        cmd_vel.angular.z = max_rot_vel;
+        std::cout << "Angular z velocity exceeds limit" << std::endl;
     }
-    if (velMsg.angular.x < -max_rot_vel){
-        velMsg.angular.x = -max_rot_vel;
+    if (velMsg.angular.z < -max_rot_vel){
+        cmd_vel.angular.z = -max_rot_vel;
+        std::cout << "Angular z velocity exceeds limit" << std::endl;
     }
     pub_vel.publish(cmd_vel);
 
 }
+
 
 
 
