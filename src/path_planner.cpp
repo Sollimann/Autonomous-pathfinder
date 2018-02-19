@@ -16,6 +16,12 @@
 
 using namespace arma;
 
+//namespace MapEnums
+//{
+    enum {UNKNOWN = 0, OPEN = 1, WALL = 2};
+//}
+//typedef MapEnums::MapEnum MapEnum;
+
 class PathPlanner{
 private:
     ros::Subscriber sub_pos;
@@ -27,14 +33,25 @@ private:
     double pos_x, pos_y, ang_z, setpoint_x, setpoint_y;
     int current_point;
     double threshold_switch;
+    cube wall_map;
+    mat flood_fill_map;
 public:
     PathPlanner(ros::NodeHandle &nh);
     void callback_odom( const nav_msgs::OdometryConstPtr& poseMsg);
+    void initializeWallMap();
+    void printWallMap();
+    void initializeFloodFillMap();
+    void set_flood_fill_map_value(int x_pos, int y_pos, int value);
+    int get_flood_fill_map_value(int x_pos, int y_pos);
 
 };
 
 
-PathPlanner::PathPlanner(ros::NodeHandle &nh) {
+PathPlanner::PathPlanner(ros::NodeHandle &nh){
+    // Initializing wall map:
+    initializeWallMap();
+    initializeFloodFillMap();
+
     // Setting the row of path_points which is the current target setpoint
     current_point = 0;
     threshold_switch = 0.1;
@@ -68,7 +85,7 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
     geometry_msgs::Point cmd_setpoint_smooth;
     geometry_msgs::Point cmd_x_y_yaw;
 
-    // Redefining axis system from:
+    // Redefining coordinate system from
     //          x       y
     //          |  to   |
     //          |       |
@@ -111,6 +128,7 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
     float z = poseMsg->pose.pose.orientation.z;
     float w = poseMsg->pose.pose.orientation.w;
 
+    // Converting quaterninon to yaw angle:
     ang_z = -atan2((2.0 * (w*z + x*y)), (1.0 - 2.0 * (y*y + z*z)));
     std::cout << "Angle: " << ang_z << std::endl;
 
@@ -119,6 +137,113 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
     cmd_x_y_yaw.z = ang_z;
     pub_x_y_yaw.publish(cmd_x_y_yaw);
 
+}
+
+
+void PathPlanner::initializeWallMap(){
+
+    // 9x9 matrix containing information if there is a wall or not in direction
+    // North, East, South and/or West for the point.
+    // Each point has a vector of 4 elements indicating whether or not a wall is nearby, and in which direction.
+    // [N, E, S, W] could either be UNKNOWN, OPEN or WALL
+    wall_map = cube(9,9,4, fill::zeros);
+
+    // Fill the information which is already known into the map, i.e outer boundaries has a wall.
+    // (row,col)=(0,0) is bottom left
+    // (row,col)=(0,8) is bottom right
+    // (row,col)=(8,8) is top right
+    // (row,col)=(8,0) is top left
+
+    for (int row = 0; row < 9; row++){
+        for (int col = 0; col < 9; col++){
+            if (row == 0){
+                wall_map(row, col, 2) = WALL; // wall to the south
+            }
+            if (row == 8){
+                wall_map(row, col, 0) = WALL; // wall to the north
+            }
+            if (col == 0){
+                wall_map(row, col, 3) = WALL; // wall to the west
+            }
+            if (col == 8){
+                wall_map(row, col, 1) = WALL; // wall to the east
+            }
+        }
+    }
+    std::cout << "Wall map initialized!" << std::endl;
+
+    //printWallMap();
+}
+
+
+void PathPlanner::printWallMap(){
+    // Printing the map to the terminal
+    std::cout << "South wall map: " << std::endl;
+    for (int row = 8; row >= 0; row--){
+        std::cout << std::endl;
+        for (int col = 0; col < 9; col++){
+            std::cout << wall_map(row, col, 2) << " ";
+        }
+    }
+    std::cout  << "\n" << std::endl;
+
+    std::cout << "East wall map: " << std::endl;
+    for (int row = 8; row >= 0; row--){
+        std::cout << std::endl;
+        for (int col = 0; col < 9; col++){
+            std::cout << wall_map(row, col, 1) << " ";
+        }
+    }
+    std::cout  << "\n" << std::endl;
+
+    std::cout << "North wall map: " << std::endl;
+    for (int row = 8; row >= 0; row--){
+        std::cout << std::endl;
+        for (int col = 0; col < 9; col++){
+            std::cout << wall_map(row, col, 0) << " ";
+        }
+    }
+    std::cout  << "\n" << std::endl;
+
+    std::cout << "West wall map: " << std::endl;
+    for (int row = 8; row >= 0; row--){
+        std::cout << std::endl;
+        for (int col = 0; col < 9; col++){
+            std::cout << wall_map(row, col, 3) << " ";
+        }
+    }
+    std::cout  << "\n" << std::endl;
+}
+
+
+void PathPlanner::initializeFloodFillMap(){
+    flood_fill_map  << 8 << 7 << 6 << 5 << 4 << 5 << 6 << 7 << 8 << endr
+                    << 7 << 6 << 5 << 4 << 3 << 4 << 5 << 6 << 7 << endr
+                    << 6 << 5 << 4 << 3 << 2 << 3 << 4 << 5 << 6 << endr
+                    << 5 << 4 << 3 << 2 << 1 << 2 << 3 << 4 << 5 << endr
+                    << 4 << 3 << 2 << 1 << 0 << 1 << 2 << 3 << 4 << endr
+                    << 5 << 4 << 3 << 2 << 1 << 2 << 3 << 4 << 5 << endr
+                    << 6 << 5 << 4 << 3 << 2 << 3 << 4 << 5 << 6 << endr
+                    << 7 << 6 << 5 << 4 << 3 << 4 << 5 << 6 << 7 << endr
+                    << 8 << 7 << 6 << 5 << 4 << 5 << 6 << 7 << 8 << endr;
+
+    std::cout << "Flood fill map initialized!" << std::endl;
+    //std::cout <<  " Printed: " << std::endl;
+    //flood_fill_map.print();
+
+    //set_flood_fill_map_value(3,5,10);
+    //flood_fill_map(5,3) = 10;
+    //flood_fill_map.print();
+    //std::cout << "get_flood_fill_map_value(3,5) = " << get_flood_fill_map_value(3,5) << std::endl;
+}
+
+
+void PathPlanner::set_flood_fill_map_value(int x_pos, int y_pos, int value){
+    flood_fill_map(8 - y_pos, x_pos) = value;
+}
+
+int PathPlanner::get_flood_fill_map_value(int x_pos, int y_pos){
+    return flood_fill_map(8 - y_pos, x_pos);
 }
 
 
