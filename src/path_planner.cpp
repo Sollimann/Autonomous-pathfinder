@@ -40,13 +40,13 @@ PathPlanner::PathPlanner(ros::NodeHandle &nh) {
     threshold_switch = 0.1;
 
     // Generating a path for the bot to follow. (x,y) coordinates:
-    path_points     << 1 << 0 << endr
+    path_points     << 0 << 1 << endr
                     << 1 << 1 << endr
-                    << 2 << 1 << endr
-                    << 3 << 1 << endr
-                    << 3 << 2 << endr
+                    << 1 << 2 << endr
+                    << 1 << 3 << endr
+                    << 2 << 3 << endr
                     << 3 << 3 << endr
-                    << 4 << 3 << endr
+                    << 3 << 4 << endr
                     << 4 << 4 << endr;
 
     setpoint_x = path_points(current_point, 0);
@@ -68,8 +68,14 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
     geometry_msgs::Point cmd_setpoint_smooth;
     geometry_msgs::Point cmd_x_y_yaw;
 
-    pos_x = poseMsg->pose.pose.position.x;
-    pos_y = -(poseMsg->pose.pose.position.y);
+    // Redefining axis system from:
+    //          x       y
+    //          |  to   |
+    //          |       |
+    // y <-------       -------> x
+
+    pos_y = poseMsg->pose.pose.position.x;
+    pos_x = -(poseMsg->pose.pose.position.y);
 
     setpoint_x = path_points(current_point, 0);
     setpoint_y = path_points(current_point, 1);
@@ -104,7 +110,6 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
     float y = poseMsg->pose.pose.orientation.y;
     float z = poseMsg->pose.pose.orientation.z;
     float w = poseMsg->pose.pose.orientation.w;
-
 
     ang_z = -atan2((2.0 * (w*z + x*y)), (1.0 - 2.0 * (y*y + z*z)));
     std::cout << "Angle: " << ang_z << std::endl;
