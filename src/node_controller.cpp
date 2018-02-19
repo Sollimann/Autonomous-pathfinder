@@ -124,16 +124,14 @@ class Control{
 
                 }
 
-                error_x = set_x - pos_x;
-                error_y = set_y - pos_y;
+                error_x = abs(set_x) - abs(pos_x);
+                error_y = abs(set_y - pos_y;
                 error_dist = sqrt(error_x^2 + error_y^2);
 
 
 
 
                 //Calculate proper angle error
-
-                if (set_)
 
 
                 error_z =   set_z - ang_z;
