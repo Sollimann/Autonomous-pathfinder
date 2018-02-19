@@ -61,3 +61,6 @@ target_link_libraries(node_watchdog ${catkin_LIBRARIES})
 
 add_executable(node_distance_logger src/node_distance_logger.cpp)
 target_link_libraries(node_distance_logger ${catkin_LIBRARIES})
+
+add_executable(node_controller src/node_controller.cpp)
+target_link_libraries(node_controller ${catkin_LIBRARIES})
