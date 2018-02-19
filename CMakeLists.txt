@@ -58,3 +58,6 @@ target_link_libraries(path_planner_node ${catkin_LIBRARIES})
 
 add_executable(node_watchdog src/node_watchdog.cpp)
 target_link_libraries(node_watchdog ${catkin_LIBRARIES})
+
+add_executable(node_distance_logger src/node_distance_logger.cpp)
+target_link_libraries(node_distance_logger ${catkin_LIBRARIES})
