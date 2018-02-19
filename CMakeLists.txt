@@ -14,6 +14,8 @@ find_package(catkin REQUIRED COMPONENTS
   message_generation
 )
 
+find_package(Armadillo REQUIRED)
+
 # find_package(Boost REQUIRED COMPONENTS system)
 find_package(OpenCV REQUIRED)
 
@@ -31,7 +33,7 @@ generate_messages(
 )
 
 
-catkin_package(CATKIN_DEPENDS message_runtime roscpp std_msgs geometry_msgs)
+catkin_package(CATKIN_DEPENDS message_runtime roscpp std_msgs geometry_msgs sensor_msgs)
 
 
 ## Your package locations should be listed before other locations
@@ -50,3 +52,6 @@ include
 
 add_executable(navigator_node src/navigator.cpp)
 target_link_libraries(navigator_node ${catkin_LIBRARIES})
+
+add_executable(path_planner_node src/path_planner.cpp)
+target_link_libraries(path_planner_node ${catkin_LIBRARIES})
