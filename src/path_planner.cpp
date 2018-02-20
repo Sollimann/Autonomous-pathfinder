@@ -37,7 +37,7 @@ public:
 PathPlanner::PathPlanner(ros::NodeHandle &nh) {
     // Setting the row of path_points which is the current target setpoint
     current_point = 0;
-    threshold_switch = 0.1;
+    threshold_switch = 0.01;
 
     // Generating a path for the bot to follow. (x,y) coordinates:
     path_points     << 0 << 1 << endr
@@ -97,8 +97,8 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
     cmd_setpoint.y = setpoint_y;
     cmd_setpoint.z = 0;
 
-    cmd_setpoint_smooth.x = pos_x + 0.01 * setpoint_x;
-    cmd_setpoint_smooth.y = pos_y + 0.01 * setpoint_y;
+    cmd_setpoint_smooth.x = setpoint_x; //0.7 * pos_x + 0.3 * setpoint_x;
+    cmd_setpoint_smooth.y = setpoint_y; //0.7 * pos_y + 0.3 * setpoint_y;
     cmd_setpoint_smooth.z = 0;
     std::cout << "Smooth setpoint (x,y) =  (" << pos_x + 0.01 * setpoint_x << ", " << pos_y + 0.01 * setpoint_y << ")" << std::endl;
 
