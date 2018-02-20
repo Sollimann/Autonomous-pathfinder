@@ -10,16 +10,17 @@
 #include <algorithm>
 #include <vector>
 #include <math.h>
+#include <geometry_msgs/Pose2D.h>
 
 class BotController{
     private:
         ros::Subscriber pos_sub;
         ros::Publisher vel_pub;
-	ros::Subscriber scanSub;
+		ros::Subscriber scanSub;
 
         int count, wall, goal;
         double trans_x, trans_z;
-        double pos_x, pos_y, ori_z, ang_z;
+        double pos_x, pos_y, ori_z, ang_z, quat;
         double target_x, target_y, target_o, target_r;
         double init_r, init_ang_z, init_x, init_y;
 	std::vector<float> dist;
@@ -55,12 +56,18 @@ class BotController{
 		int turn = 0;
 		geometry_msgs::Twist base_cmd;
 		target_x = 5; // Change travel distance here
-		target_o = PI_/2;;
+		target_o = PI_/2;
 		pos_x = poseMsg->pose.pose.position.x;
 		pos_y = poseMsg->pose.pose.position.y;
-		ori_z = poseMsg->pose.pose.orientation.z;
-		ang_z = ori_z*2.19;
 
+			float x = poseMsg->pose.pose.orientation.x;
+			float y = poseMsg->pose.pose.orientation.y;
+			float z = poseMsg->pose.pose.orientation.z;
+			float w = poseMsg->pose.pose.orientation.w;
+
+
+			ang_z = atan2((2.0 * (w*z + x*y)), (1.0 - 2.0 * (y*y + z*z)));
+			std::cout << "ang: " << ang_z << std::endl;
 
 
 		if(count == 0){
@@ -148,17 +155,16 @@ class BotController{
 				trans_z = 0;
 		}
 
-
-		base_cmd.linear.x = trans_x;
+		base_cmd.linear.x = 0;
 		if( (turn == 1) || (turn == 2) || (goal == 2)){
-			base_cmd.angular.z = trans_z;
+			base_cmd.angular.z = 1;
 		}
 		
 
             vel_pub.publish(base_cmd);
-            std::cout<< std::setprecision(2) << std::fixed;
-            std::cout << poseMsg->header.stamp
-                      << " Current:" << pos_x << "," << pos_y << std::endl;
+            //std::cout<< std::setprecision(2) << std::fixed;
+            //std::cout << poseMsg->header.stamp
+            //          << " Current:" << pos_x << "," << pos_y << std::endl;
 
         }
 };
