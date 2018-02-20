@@ -172,7 +172,7 @@ void PathPlanner::initializeWallMap(){
     }
     std::cout << "Wall map initialized!" << std::endl;
 
-    //printWallMap();
+    printWallMap();
 }
 
 
@@ -228,8 +228,8 @@ void PathPlanner::initializeFloodFillMap(){
                     << 8 << 7 << 6 << 5 << 4 << 5 << 6 << 7 << 8 << endr;
 
     std::cout << "Flood fill map initialized!" << std::endl;
-    //std::cout <<  " Printed: " << std::endl;
-    //flood_fill_map.print();
+    std::cout <<  " Printed: " << std::endl;
+    flood_fill_map.print();
 
     //set_flood_fill_map_value(3,5,10);
     //flood_fill_map(5,3) = 10;
