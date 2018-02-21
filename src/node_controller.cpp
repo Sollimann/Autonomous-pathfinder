@@ -63,7 +63,7 @@ Control::Control(ros::NodeHandle nh) {
 
     // Callback updates set point position in x and y
     sub_position = nh.subscribe("pathplanner/x_y_yaw",1,&Control::get_position,this);
-    sub_setpoint = nh.subscribe("/pathplanner/setpoint_smooth",1,&Control::get_setpoint, this);
+    sub_setpoint = nh.subscribe("/pathplanner/setpoint",1,&Control::get_setpoint, this);
 
     pub_control_speed = nh.advertise<geometry_msgs::Twist>("/mobile_base/commands/velocity",1);
 }
