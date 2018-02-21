@@ -58,7 +58,7 @@ Control::Control(ros::NodeHandle nh) {
     Kp_ang = 0.35; //Heading gain     //0.3 - 0.35
     Ki_ang = 0.05;                   //0.05 - 0.05
     Kp_fwd = 0.1; //Forward gain       //0.1 - 0.1
-    Ki_fwd = 0.003;                    //0.0 - 0.001
+    Ki_fwd = 0.001;                    //0.0 - 0.001
     Kd_fwd = 0.05;                    //0.05 - 0.05
 
     // Callback updates set point position in x and y
