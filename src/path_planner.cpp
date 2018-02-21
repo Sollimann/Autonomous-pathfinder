@@ -96,7 +96,7 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
 
     // Check if x and y coordinate is close to a node position. Close = within 0.2m x 0.2m square around node position
     // If so, we want to check for walls while being close to this point
-    if (fabs(round(pos_y) - pos_y) < 0.2 && fabs(round(pos_x) - pos_x) < 0.2){
+    if (fabs(round(pos_y) - pos_y) < 0.4 && fabs(round(pos_x) - pos_x) < 0.4){
         fill_walls();
     }
 
@@ -177,7 +177,7 @@ void PathPlanner::initializeWallMap(){
 
     std::cout << "Wall map initialized!" << std::endl;
 
-    printWallMap();
+    //printWallMap();
 }
 
 
@@ -234,7 +234,7 @@ void PathPlanner::initializeFloodFillMap(){
 
     std::cout << "Flood fill map initialized!" << std::endl;
     std::cout <<  " Printed: " << std::endl;
-    flood_fill_map.print();
+    //flood_fill_map.print();
 
     //set_flood_fill_map_value(3,5,10);
     //flood_fill_map(5,3) = 10;
@@ -289,23 +289,23 @@ void PathPlanner::fill_walls(){
     int direction = -1;
     double ang_z_deg = ang_z * 180.0 / PI;
 
-    if (ang_z_deg > 0 && ang_z_deg < 1){
+    if (ang_z_deg > 0 && ang_z_deg < 3){
         direction = 0; // North
     }
-    else if (ang_z_deg < 0 && ang_z_deg > -1){
+    else if (ang_z_deg < 0 && ang_z_deg > -3){
         direction = 0; // North
     }
-    else if (ang_z_deg > 89 && ang_z_deg < 91){
+    else if (ang_z_deg > 87 && ang_z_deg < 93){
         direction = 1; // East
     }
-    else if (ang_z_deg > 179 || ang_z_deg < -179){
+    else if (ang_z_deg > 177 || ang_z_deg < -177){
         direction = 2; // South
     }
-    else if (ang_z_deg < -89 && ang_z_deg > -91){
+    else if (ang_z_deg < -87 && ang_z_deg > -93){
         direction = 3; // West
     }
 
-    if (dist_mid < 1.1 && direction != -1){
+    if (dist_mid < 1.5 && direction != -1){
         set_wall(pos_x_int, pos_y_int, direction);
     }
 }
