@@ -18,12 +18,11 @@ private:
     ros::Subscriber sub_setpoint;
     ros::Subscriber sub_position;
 
-    double trans_x, trans_heading, trans_x_head_pri, I_heading, I_pos, dt;
+    double trans_x, trans_heading, I_heading, I_pos, dt;
     double pos_x, pos_y, heading, setpoint_x, setpoint_y, setpoint_heading;
     double error_x,error_y, error_heading, error_pos,error_pos_prev;
     double PI, Kp_fwd, Kp_ang, Ki_ang, Ki_fwd, Kd_fwd;
-    int SWITCH, count;
-    double RAMP;
+    int dir;
 public:
     Control(ros::NodeHandle nh);
 
@@ -60,11 +59,11 @@ Control::Control(ros::NodeHandle nh) {
     Kp_fwd = 0.1; //Forward gain       //0.1 - 0.1
     Ki_fwd = 0.001;                    //0.0 - 0.001
     Kd_fwd = 0.05;                    //0.05 - 0.05
+    dir = 4;
 
     // Callback updates set point position in x and y
     sub_position = nh.subscribe("pathplanner/x_y_yaw",1,&Control::get_position,this);
     sub_setpoint = nh.subscribe("/pathplanner/setpoint",1,&Control::get_setpoint, this);
-
     pub_control_speed = nh.advertise<geometry_msgs::Twist>("/mobile_base/commands/velocity",1);
 }
 
@@ -77,14 +76,25 @@ void Control::get_position(const geometry_msgs::Point& posMsg) {
 
 }
 
-//This function will subscribe to setpoint messages from
-//the pathplanner node.
+//This function will subscribe to setpoint messages from the pathplanner node.
 void Control::get_setpoint(const geometry_msgs::Point& setpointMsg) {
 
     //Position from pathplanner node
     setpoint_x = setpointMsg.x;
     setpoint_y = setpointMsg.y;
-    setpoint_heading = atan2(error_x, error_y);
+    dir = (int) round(setpointMsg.z);
+
+    calculate_speed();
+}
+
+void Control::calculate_speed(){
+    geometry_msgs::Twist base_cmd;
+
+    if (dir == 4){setpoint_heading = atan2(error_x, error_y);}
+    else if (dir == 0){setpoint_heading = 0;}
+    else if (dir == 1){setpoint_heading = PI / 2.0;}
+    else if (dir == 2){setpoint_heading = PI - 0.00001;}
+    else if (dir == 3){setpoint_heading = - PI / 2.0;}
 
     //Calculate setpoint heading
     error_x = (setpoint_x - pos_x);
@@ -93,7 +103,7 @@ void Control::get_setpoint(const geometry_msgs::Point& setpointMsg) {
     error_pos = sqrt(error_x * error_x + error_y * error_y);
     error_heading = setpoint_heading - heading;
 
-    // Yaw angle is defined as [0, 2pi], so the residuals can not be less than or grater than +-pi:
+    // Heading is defined as [-pi, pi], so the error can not be less than -pi or greater than pi:
     if (error_heading < -PI)
     {
         error_heading += 2*PI;
@@ -103,18 +113,7 @@ void Control::get_setpoint(const geometry_msgs::Point& setpointMsg) {
         error_heading -= 2*PI;
     }
 
-    calculate_speed();
-}
-
-void Control::calculate_speed(){
-    geometry_msgs::Twist base_cmd;
-
-
-    //****** PI-controller *********
-
-    //Proportional term
-
-    //Integral term
+    //Integral term in PID controller
     I_heading += dt * error_heading;
     I_pos += dt * error_pos;
 
@@ -126,26 +125,26 @@ void Control::calculate_speed(){
     std::cout << "Integral_head: " << - Ki_ang * I_heading << std::endl;
 
 */
+
     //Compute gain
-
-
-    if (abs(error_heading) > 0.20) {
+    if (fabs(error_heading) > 0.20) {
         //heading
         trans_heading = -Kp_ang * error_heading - Ki_ang * I_heading;
         std::cout << "trans_heading before: " << trans_heading;
-        trans_heading *= pow(2.0,(trans_heading)+1.0);
+        trans_heading *= pow(2.0,fabs(trans_heading)+1.0);
         std::cout << " ->   trans_heading after: " << trans_heading << std::endl;
 
         //velocity
         trans_x = Kp_fwd * error_pos + Ki_fwd * I_pos + Kd_fwd * (error_pos_prev - error_pos);
         std::cout << "trans_x before: " << trans_x;
-        trans_x *= (1.0/pow(4.0,(trans_heading)+1.0));
+        trans_x *= (1.0/pow(4.0,fabs(trans_heading)+1.0));
         std::cout << " ->   trans_x after: " << trans_x << std::endl;
-    }else{
+    }
+    else{
         trans_heading = -Kp_ang * error_heading - Ki_ang * I_heading;
         trans_x = Kp_fwd * error_pos + Ki_fwd * I_pos + Kd_fwd * (error_pos_prev - error_pos);
     }
-    //******************************
+
     std::cout << "trans_heading: " << trans_heading * 180.0 / PI << " deg/s " << std::endl;
     std::cout << "trans_x: " << trans_x << " m/s " << std::endl;
 
@@ -162,7 +161,6 @@ void Control::calculate_speed(){
     std::cout << "trans_heading: " << trans_heading * 180.0 / PI << " deg/s " << std::endl;
     std::cout << "trans_x: " << trans_x << " m/s " << std::endl;
 */
-
 
     base_cmd.linear.x = trans_x;
     base_cmd.angular.z = trans_heading;
