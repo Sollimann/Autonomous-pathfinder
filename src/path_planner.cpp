@@ -36,6 +36,12 @@ private:
 
     //Flood fill
     mat flood_fill_map;
+    vec region = zeros<vec>(4);
+    int MAX;
+    int min_position;
+
+    //Wall vector
+    vec wall_vec = zeros<vec>(4);
 
     //Stack of pair coordinates
     typedef std::pair <int, int> Stack;
@@ -50,7 +56,7 @@ public:
     void printWallMap();
     void spin();
     void set_wall(int pos_x_int, int pos_y_int, int direction);
-    std::vector<unsigned int> get_wall(int pos_x_int, int pos_y_int);
+    vec get_wall(int pos_x_int, int pos_y_int);
     void fill_walls();
 
 
@@ -59,6 +65,7 @@ public:
     void set_flood_fill_map_value(int x_pos, int y_pos, int value);
     int get_flood_fill_map_value(int x_pos, int y_pos);
     void set_next_destination_cell();
+    int arma_min_index(vec v);
 
     //Track the path of the robot
     //Stack
@@ -244,22 +251,21 @@ void PathPlanner::set_next_destination_cell() {
     // 1.) Detect my current cell
     int pos_x_int = (int) round(pos_x);
     int pos_y_int = (int) round(pos_y);
-    pos_x_int_last = pos_x_int;
-    pos_y_int_last = pos_y_int;
 
     // 2.) Update the stack with all visited locations
     if ((pos_x_int != pos_x_int_last) && (pos_y_int != pos_y_int_last)) {
-        coordinate.push_front(std::make_pair(pos_x_int, pos_y_int));
+        coordinate.push_back(std::make_pair(pos_x_int, pos_y_int));
 
         // 3.) Investigate my surrounding cells
         // Here we need to check all surrounding four cells
 
         //Initialize the nearby region of cells in a vector
-        std::vector<int> region;
-        region.reserve(4);
+        //std::vector<int> region;
+        //region.reserve(4);
 
         //Check if the surrounding cells already have registered a wall
-        std::vector<unsigned int> wall_vec = get_wall(pos_x_int,pos_y_int);
+        //vec<unsigned int> wall_vec = get_wall(pos_x_int,pos_y_int);
+        wall_vec = get_wall(pos_x_int,pos_y_int);
 
         //Fill up the region with flood fill values [N,E,S,W]
         //region[int,int,int,int]
@@ -269,28 +275,32 @@ void PathPlanner::set_next_destination_cell() {
         region(3) = get_flood_fill_map_value(pos_x_int-1,pos_y_int);
 
         //Iterator detects value of largest, *points to the value
-        int MAX = *std::max_element(region.begin(), region.end());
+        MAX = max(region);
     }
 
+    pos_x_int_last = pos_x_int;
+    pos_y_int_last = pos_y_int;
 
     //Scan flood fill vector to find the lowest possible entry
-    int min_position = std::min_element(region.begin(), region.end());
+    //int min_position = std::min_element(region.begin(), region.end());
+
 
     //Checking lowest value cell entry has a wall
+    min_position = arma_min_index(region);
     while(wall_vec(min_position) == 1){
         region(min_position) = MAX+1;
-        min_position = std::min_element(region.begin(), region.end());
+        min_position = arma_min_index(region);
     }
 
 
     if(wall_vec(min_position) == 0) {
-        cmd_setpoint.x = setpoint_x;
-        cmd_setpoint.y = setpoint_y;
-        cmd_setpoint.z = min_position;
+        //cmd_setpoint.x = setpoint_x;
+        //cmd_setpoint.y = setpoint_y;
+        //cmd_setpoint.z = min_position;
     }else{
-        cmd_setpoint.x = setpoint_x;
-        cmd_setpoint.y = setpoint_y;
-        cmd_setpoint.z = 4; //value 5 indicates that we want to give our next destination
+        //cmd_setpoint.x = setpoint_x;
+        //cmd_setpoint.y = setpoint_y;
+        //cmd_setpoint.z = 4; //value 5 indicates that we want to give our next destination
     }
 
 
@@ -319,8 +329,6 @@ void PathPlanner::set_next_destination_cell() {
             // --> 3iii.) If, (the cell has a wall (is not open) closest to my current position)
             // --> Then this cell is not ACCESSIBLE
             //            else. --> cell is ACCESSIBLE
-
-
 
 
 
@@ -365,7 +373,11 @@ void PathPlanner::set_flood_fill_map_value(int x_pos, int y_pos, int value){
 }
 
 int PathPlanner::get_flood_fill_map_value(int x_pos, int y_pos){
-    return flood_fill_map(8 - y_pos, x_pos);
+
+    if (x_pos < 0 || y_pos < 0 || x_pos > 8 || y_pos > 8){
+        return 100;}
+    else{
+    return flood_fill_map(8 - y_pos, x_pos);}
 }
 
 
@@ -400,15 +412,30 @@ void PathPlanner::set_wall(int pos_x_int, int pos_y_int, int direction){
     }
 }
 
+int PathPlanner::arma_min_index(vec v){
+    int min = 3;
+    int TEMP = v(3);
+    for (int i = 0; i < 4;i++){
+        if (v(i) <= TEMP){
+            min = i;
+            TEMP = v(i);
+        }
+    }
+    return min;
+}
 
-std::vector<unsigned int> PathPlanner::get_wall(int pos_x_int, int pos_y_int){
+//Armadillo vector
+vec PathPlanner::get_wall(int pos_x_int, int pos_y_int){
 
     int N = wall_map(pos_y_int,pos_x_int,0);
     int E = wall_map(pos_y_int,pos_x_int,1);
     int S = wall_map(pos_y_int,pos_x_int,2);
     int W = wall_map(pos_y_int,pos_x_int,3);
 
-    return {N,E,S,W};
+    vec wall;
+    wall << N << E << S << W << endr;
+
+    return wall;
 }
 
 void PathPlanner::fill_walls(){
@@ -437,7 +464,7 @@ void PathPlanner::fill_walls(){
         set_wall(pos_x_int, pos_y_int, direction);
     }else if(direction != -1){
         sector_checked = true;
-    }else{sector_checked = false}
+    }else{sector_checked = false;}
 
 }
 
