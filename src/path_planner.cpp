@@ -29,7 +29,7 @@ private:
     ros::Publisher pub_x_y_yaw;
     mat path_points;
     double pos_x, pos_y, ang_z, setpoint_x, setpoint_y;
-    int pos_x_int_last, pos_y_int_last;
+    int pos_x_int_last, pos_y_int_last, setpoint_heading;
     int current_point;
     double threshold_switch, dt, PI, dist_mid;
     cube wall_map;
@@ -76,6 +76,9 @@ PathPlanner::PathPlanner(ros::NodeHandle &nh){
     // Initializing wall map:
     initializeWallMap();
     initializeFloodFillMap();
+    pos_x_int_last = -1;
+    pos_y_int_last = -1;
+
 
     // Setting the row of path_points which is the current target setpoint
     current_point = 0;
@@ -96,6 +99,7 @@ PathPlanner::PathPlanner(ros::NodeHandle &nh){
 
     setpoint_x = path_points(current_point, 0);
     setpoint_y = path_points(current_point, 1);
+    setpoint_heading = 4;
 
     // Defining subscribers and publishers:
     sub_pos = nh.subscribe("/odom",1,&PathPlanner::callback_odom, this);
@@ -253,26 +257,23 @@ void PathPlanner::set_next_destination_cell() {
     int pos_y_int = (int) round(pos_y);
 
     // 2.) Update the stack with all visited locations
-    if ((pos_x_int != pos_x_int_last) && (pos_y_int != pos_y_int_last)) {
+    if ((pos_x_int != pos_x_int_last) || (pos_y_int != pos_y_int_last)) {
         coordinate.push_back(std::make_pair(pos_x_int, pos_y_int));
 
         // 3.) Investigate my surrounding cells
         // Here we need to check all surrounding four cells
 
-        //Initialize the nearby region of cells in a vector
-        //std::vector<int> region;
-        //region.reserve(4);
 
         //Check if the surrounding cells already have registered a wall
         //vec<unsigned int> wall_vec = get_wall(pos_x_int,pos_y_int);
-        wall_vec = get_wall(pos_x_int,pos_y_int);
+        wall_vec = get_wall(pos_x_int, pos_y_int);
 
         //Fill up the region with flood fill values [N,E,S,W]
         //region[int,int,int,int]
-        region(0) = get_flood_fill_map_value(pos_x_int,pos_y_int+1);
-        region(1) = get_flood_fill_map_value(pos_x_int+1,pos_y_int);
-        region(2) = get_flood_fill_map_value(pos_x_int,pos_y_int-1);
-        region(3) = get_flood_fill_map_value(pos_x_int-1,pos_y_int);
+        region(0) = get_flood_fill_map_value(pos_x_int, pos_y_int + 1);
+        region(1) = get_flood_fill_map_value(pos_x_int + 1, pos_y_int);
+        region(2) = get_flood_fill_map_value(pos_x_int, pos_y_int - 1);
+        region(3) = get_flood_fill_map_value(pos_x_int - 1, pos_y_int);
 
         //Iterator detects value of largest, *points to the value
         MAX = max(region);
@@ -281,27 +282,38 @@ void PathPlanner::set_next_destination_cell() {
     pos_x_int_last = pos_x_int;
     pos_y_int_last = pos_y_int;
 
-    //Scan flood fill vector to find the lowest possible entry
-    //int min_position = std::min_element(region.begin(), region.end());
-
 
     //Checking lowest value cell entry has a wall
+    //Find the lowest entry without a registered wall
     min_position = arma_min_index(region);
-    while(wall_vec(min_position) == 1){
-        region(min_position) = MAX+1;
+    while (wall_vec(min_position) == WALL) {
+        region(min_position) = MAX + 1;
         min_position = arma_min_index(region);
     }
 
 
-    if(wall_vec(min_position) == 0) {
-        //cmd_setpoint.x = setpoint_x;
-        //cmd_setpoint.y = setpoint_y;
-        //cmd_setpoint.z = min_position;
-    }else{
-        //cmd_setpoint.x = setpoint_x;
-        //cmd_setpoint.y = setpoint_y;
-        //cmd_setpoint.z = 4; //value 5 indicates that we want to give our next destination
+    //If wall is registered and sector has not been checked
+    if (wall_vec(min_position) == OPEN) {
+        setpoint_x = pos_x_int;
+        setpoint_y = pos_y_int;
+        setpoint_heading = min_position;
+
+        //holding while robot is turning
+        if (wall_vec(min_position) == OPEN) {
+            //hvis celle ikke har vegg, så er cellen neste destinatasjon og vi kan endre setpunkt
+
+    
+        } else if (wall_vec(min_position) == WALL) {
+            //Må oppdatere wall_vec
+            //wall_vec = get_wall(pos_x_int,pos_y_int);
+            //Kjøre
+        } else {
+            //cmd_setpoint.x = setpoint_x;
+            //cmd_setpoint.y = setpoint_y;
+            //cmd_setpoint.z = 4; //value 5 indicates that we want to give our next destination
+        }
     }
+}
 
 
 
@@ -336,14 +348,6 @@ void PathPlanner::set_next_destination_cell() {
     // 4.) Publish the next setpoint for the controller to read
 
 
-
-
-
-
-
-
-
-}
 
 
 void PathPlanner::initializeFloodFillMap(){
