@@ -120,7 +120,7 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
 
     cmd_setpoint.x = setpoint_x;
     cmd_setpoint.y = setpoint_y;
-    cmd_setpoint.z = 0;
+    cmd_setpoint.z = 4;
 
     pub_point.publish(cmd_setpoint);
 
