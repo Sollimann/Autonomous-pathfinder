@@ -1,14 +1,32 @@
-# rosproject1
-Project 1 in Advances in intelligent systems and robotics
+# Project in EE4308 - Advances in Intelligent Systems and Robotics - NUS 2018 #
+--------------------------
+Turtlebot simulation in Gazebo. The aim of this project is to navigate the turtlebot autonomousely from position (x,y) = (0,0) to (x,y) = (4,4) in a 9m x 9m map with a random arrangement of walls. The project is part of the assessment in the course EE4308 - Advances in Intelligens Systems and Robotics at the National University of Singapore (NUS) during the spring semester of 2018. 
 
-How to run the code: 
 
-- Clone the repostory: 
-git clone https://github.com/Sollimann/rosproject1
+## Requrements ##
+--------------------------
+Robot Operating System (ROS) Kinetic distribution installed. 
 
-- Run project_init.sh: 
-chmod +x project_init.sh
-./project_init.sh
 
-This will launch the turtlebot world 
+## About the code ## 
+-------------------------
+
+
+## How to run the code ## 
+-------------------------
+1. Clone the repository: 
+	```bash
+	$ git clone https://github.com/Sollimann/rosproject1
+	```
+
+2. Run project_init.sh: 
+	```bash
+	$ chmod +x project_init.sh
+	$ ./project_init.sh
+	```
+
+This will launch the turtlebot world. It may take several minuites to load, so be patient! 
+
+3. Launch the launch file to make the turtlebot navigate towards the target position:
+$ roslaunch rosproject1 launch_file_name 
 
