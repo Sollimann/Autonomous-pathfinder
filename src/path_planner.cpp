@@ -28,12 +28,9 @@ private:
     ros::Publisher pub_point;
     ros::Publisher pub_x_y_yaw;
     mat path_points;
-<<<<<<< HEAD
-    double pos_x, pos_y, ang_z, setpoint_x, setpoint_y;
+
     int pos_x_int_last, pos_y_int_last, setpoint_heading;
-=======
     double pos_x, pos_y, ang_z, setpoint_x, setpoint_y, setpoint_x_prev, setpoint_y_prev;
->>>>>>> master
     int current_point;
     double threshold_switch, dt, PI, dist_mid, dist_left, dist_right;
     cube wall_map;
@@ -50,7 +47,7 @@ private:
     //Stack of pair coordinates
     typedef std::pair <int, int> Stack;
     std::vector<Stack> coordinate;
-    bool sector_checked;
+    //bool sector_checked;
 
 public:
     PathPlanner(ros::NodeHandle &nh);
@@ -60,9 +57,9 @@ public:
     void printWallMap();
     void spin();
     void set_wall(int pos_x_int, int pos_y_int, int direction);
-<<<<<<< HEAD
     vec get_wall(int pos_x_int, int pos_y_int);
     void fill_walls();
+    void check_for_walls();
 
 
     //Flood fill
@@ -72,11 +69,6 @@ public:
     void set_next_destination_cell();
     int arma_min_index(vec v);
 
-    //Track the path of the robot
-    //Stack
-=======
-    void check_for_walls();
->>>>>>> master
 };
 
 
@@ -99,12 +91,44 @@ PathPlanner::PathPlanner(ros::NodeHandle &nh){
 
     // Generating a path for the bot to follow. (x,y) coordinates:
     path_points     << 0 << 1 << endr
-                    << 1 << 1 << endr
-                    << 1 << 2 << endr
-                    << 1 << 3 << endr
-                    << 2 << 3 << endr
-                    << 3 << 3 << endr
-                    << 3 << 4 << endr
+                    << 0 << 2 << endr
+                    << 0 << 3 << endr
+                    << 0 << 4 << endr
+                    << 1 << 4 << endr
+                    << 1 << 5 << endr
+                    << 1 << 6 << endr
+                    << 2 << 6 << endr
+                    << 3 << 6 << endr
+                    << 3 << 7 << endr
+                    << 3 << 8 << endr
+                    << 2 << 8 << endr
+                    << 1 << 8 << endr
+                    << 0 << 8 << endr
+                    << 0 << 7 << endr
+                    << 1 << 7 << endr
+                    << 1 << 8 << endr
+                    << 2 << 8 << endr
+                    << 3 << 8 << endr
+                    << 4 << 8 << endr
+                    << 5 << 8 << endr
+                    << 6 << 8 << endr
+                    << 7 << 8 << endr
+                    << 8 << 8 << endr
+                    << 8 << 7 << endr
+                    << 7 << 7 << endr
+                    << 7 << 6 << endr
+                    << 7 << 5 << endr
+                    << 7 << 4 << endr
+                    << 7 << 3 << endr
+                    << 7 << 2 << endr
+                    << 7 << 1 << endr
+                    << 7 << 0 << endr
+                    << 6 << 0 << endr
+                    << 5 << 0 << endr
+                    << 4 << 0 << endr
+                    << 4 << 1 << endr
+                    << 4 << 2 << endr
+                    << 4 << 3 << endr
                     << 4 << 4 << endr;
 
     setpoint_x = path_points(current_point, 0);
@@ -146,28 +170,22 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
 
     if (error_pos < threshold_switch){
 
-<<<<<<< HEAD
         //set_next_destination_cell();
 
         //current_point++;
         //setpoint_x = path_points(current_point, 0);
         //setpoint_y = path_points(current_point, 1);
-=======
         current_point++;
         setpoint_x_prev = setpoint_x;
         setpoint_y_prev = setpoint_y;
         setpoint_x = path_points(current_point, 0);
         setpoint_y = path_points(current_point, 1);
->>>>>>> master
     }
 
     cmd_setpoint.x = setpoint_x;
     cmd_setpoint.y = setpoint_y;
-<<<<<<< HEAD
     //cmd_setpoint.z = 0;
-=======
     cmd_setpoint.z = 4;
->>>>>>> master
 
     pub_point.publish(cmd_setpoint);
 
@@ -437,7 +455,6 @@ void PathPlanner::set_wall(int pos_x_int, int pos_y_int, int direction){
         }
 
         std::cout << pos_x_int << ", " << pos_y_int << ")" << std::endl;
-<<<<<<< HEAD
         std::cout << "New wall map:" << std::endl;
         //printWallMap();
     }
@@ -451,10 +468,9 @@ int PathPlanner::arma_min_index(vec v){
             min = i;
             TEMP = v(i);
         }
-=======
         //std::cout << "New wall map:" << std::endl;
         //printWallMap();
->>>>>>> master
+
     }
     return min;
 }
@@ -497,15 +513,13 @@ void PathPlanner::check_for_walls(){
     else if (ang_z_deg < -87 && ang_z_deg > -93){
         direction = 3; // West
     }
-
-<<<<<<< HEAD
+/*
     if (dist_mid < 1.5 && direction != -1){
         set_wall(pos_x_int, pos_y_int, direction);
     }else if(direction != -1){
         sector_checked = true;
     }else{sector_checked = false;}
-
-=======
+*/
     // Check if x and y coordinate is close to a node position. Close = within 0.4m x 0.4m square around node position
     // If so, we want to check for walls while being close to this point
     if (fabs(pos_y_int - pos_y) < 0.4 && fabs(pos_x_int - pos_x) < 0.4){
@@ -520,7 +534,7 @@ void PathPlanner::check_for_walls(){
     if (fabs((setpoint_x*0.2 + setpoint_x_prev*0.8) - pos_x) < 0.1 && fabs((setpoint_y*0.2 + setpoint_y_prev*0.8) - pos_y) < 0.1){
         // Check for walls to the side of the node front of the current position
 
-        if (dist_left < 1.0 && direction != -1){
+        if (dist_left < 1.4 && direction != -1){
             std::cout << "Found wall left" << std::endl;
             // Wall left for the node in front
             int wall_direction = direction - 1; // Direction shifted counterclockwise since wall to left
@@ -528,7 +542,7 @@ void PathPlanner::check_for_walls(){
             set_wall(setpoint_x_int, setpoint_y_int, wall_direction);
         }
 
-        if (dist_right < 1.0 && direction != -1){
+        if (dist_right < 1.4 && direction != -1){
             std::cout << "Found wall right" << std::endl;
             // Wall right for the node in front
             int wall_direction = direction + 1; // Direction shifted clockwise since wall to right
@@ -537,7 +551,6 @@ void PathPlanner::check_for_walls(){
         }
 
     }
->>>>>>> master
 }
 
 
