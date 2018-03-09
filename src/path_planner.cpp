@@ -38,15 +38,18 @@ private:
     //Flood fill
     mat flood_fill_map;
     vec region = zeros<vec>(4);
-    int MAX;
-    int min_position;
+    vec TEMP;
+    vec next_pos = zeros<vec>(2);
+    int MAX,MIN;
+    int min_heading;
+    int current_region;
 
     //Wall vector
     vec wall_vec = zeros<vec>(4);
 
     //Stack of pair coordinates
     typedef std::pair <int, int> Stack;
-    std::vector<Stack> coordinate;
+    std::vector<Stack> coordinate_visited;
     //bool sector_checked;
 
 public:
@@ -66,6 +69,7 @@ public:
     void initializeFloodFillMap();
     void set_flood_fill_map_value(int x_pos, int y_pos, int value);
     int get_flood_fill_map_value(int x_pos, int y_pos);
+    bool check_stack(int pos_x, int pos_y, int heading);
     void set_next_destination_cell();
     int arma_min_index(vec v);
 
@@ -79,7 +83,6 @@ PathPlanner::PathPlanner(ros::NodeHandle &nh){
     pos_x_int_last = -1;
     pos_y_int_last = -1;
 
-
     // Setting the row of path_points which is the current target setpoint
     current_point = 0;
     threshold_switch = 0.01;
@@ -88,6 +91,9 @@ PathPlanner::PathPlanner(ros::NodeHandle &nh){
     dist_mid = 3;
     dist_right = 3;
     dist_left = 3;
+
+    //Add last position to stack
+    coordinate_visited.push_back(std::make_pair(0, 0));
 
     // Generating a path for the bot to follow. (x,y) coordinates:
     path_points     << 0 << 1 << endr
@@ -170,16 +176,21 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
 
     if (error_pos < threshold_switch){
 
-        //set_next_destination_cell();
+
 
         //current_point++;
         //setpoint_x = path_points(current_point, 0);
         //setpoint_y = path_points(current_point, 1);
-        current_point++;
+
+
+        //current_point++;
         setpoint_x_prev = setpoint_x;
         setpoint_y_prev = setpoint_y;
-        setpoint_x = path_points(current_point, 0);
-        setpoint_y = path_points(current_point, 1);
+        //setpoint_x = path_points(current_point, 0);
+        //setpoint_y = path_points(current_point, 1);
+
+        set_next_destination_cell();
+
     }
 
     cmd_setpoint.x = setpoint_x;
@@ -288,6 +299,36 @@ void PathPlanner::printWallMap(){
 }
 
 
+//This function will check if we have already been in the
+//point that we are looking at
+
+/*
+bool PathPlanner::check_stack(int pos_x, int pos_y, int heading){
+
+
+    //Pick last coordinates from stack
+    typedef std::pair<int,int> last;
+
+    last = coordinate_visited.end();
+    int last_x = last.first;
+    int last_y = last.second;
+
+    //get next coordinate
+    if (heading == 0){
+        pos_y++;
+    }else if(heading == 1){
+        pos_x++;
+    }else if(heading == 2){
+        pos_y--;
+    }else{
+        pos_x--;
+    }
+
+    //check if coordinate is last in stack
+    return (last_x == pos_x && last_y == pos_y);
+}
+*/
+
 void PathPlanner::set_next_destination_cell() {
 
     // 1.) Detect my current cell
@@ -296,7 +337,6 @@ void PathPlanner::set_next_destination_cell() {
 
     // 2.) Update the stack with all visited locations
     if ((pos_x_int != pos_x_int_last) || (pos_y_int != pos_y_int_last)) {
-        coordinate.push_back(std::make_pair(pos_x_int, pos_y_int));
 
         // 3.) Investigate my surrounding cells
         // Here we need to check all surrounding four cells
@@ -313,8 +353,16 @@ void PathPlanner::set_next_destination_cell() {
         region(2) = get_flood_fill_map_value(pos_x_int, pos_y_int - 1);
         region(3) = get_flood_fill_map_value(pos_x_int - 1, pos_y_int);
 
-        //Iterator detects value of largest, *points to the value
+        //Creating a temporary vector of region to manage
+        TEMP = region;
+
+        //Update the flood fill value of my current cell
+        current_region = get_flood_fill_map_value(pos_x_int,pos_y_int);
+
+
+        //Iterator detects value of largest/smallest, *points to the value
         MAX = max(region);
+        //MIN = min(region);
     }
 
     pos_x_int_last = pos_x_int;
@@ -323,40 +371,66 @@ void PathPlanner::set_next_destination_cell() {
 
     //Checking lowest value cell entry has a wall
     //Find the lowest entry without a registered wall
-    min_position = arma_min_index(region);
-    while (wall_vec(min_position) == WALL) {
-        region(min_position) = MAX + 1;
-        min_position = arma_min_index(region);
+    min_heading = arma_min_index(region); //returns the heading towards the cell with the lowest flood fill value
+
+    //Check if the point already exists in stack
+    //initialize last cell position
+    int last_cell_heading = 100; //ENDRE DENNE TIL NOE MER FORNUFTIG
+    //bool LAST_IN_STACK = check_stack(pos_x_int,pos_y_int,min_heading); // is true if the lowest flood fill value nearby is the cell we came from
+
+    while (wall_vec(min_heading) == WALL) {
+
+        /*
+        if (LAST_IN_STACK){
+            //Save last position as an alternative next destination
+            // store the heading where we came from
+            last_cell_heading = min_heading; //ER DETTE INNENFOR SCOPE
+        }
+*/
+        region(min_heading) = MAX + 1; // does not want to evaluate this direction since it has a wall in the way
+        min_heading = arma_min_index(region); // finds the new nearby cell which has the minimum flood fill value
+        //LAST_IN_STACK = check_stack(pos_x_int,pos_y_int,min_heading);
     }
 
-
-
-
+    //If the last cell in stack is the best flood fill alternative
+    //then return to last point
 
     /*
-    //If wall is registered and sector has not been checked
-    if (wall_vec(min_position) == OPEN) {
-        setpoint_x = pos_x_int;
-        setpoint_y = pos_y_int;
-        setpoint_heading = min_position;
-
-        //holding while robot is turning
-        if (wall_vec(min_position) == OPEN) {
-            //hvis celle ikke har vegg, så er cellen neste destinasjon og vi kan endre setpunkt
-
-
-        } else if (wall_vec(min_position) == WALL) {
-            //Må oppdatere wall_vec
-            //wall_vec = get_wall(pos_x_int,pos_y_int);
-            //Kjøre
-        } else {
-            //cmd_setpoint.x = setpoint_x;
-            //cmd_setpoint.y = setpoint_y;
-            //cmd_setpoint.z = 4; //value 5 indicates that we want to give our next destination
-        }
+    if (TEMP(min_heading) > TEMP(last_cell_heading)){ //endre navn på temp
+        min_heading = last_cell_heading;
     }
 
-    */
+     */
+    //New setpoint
+    if (min_heading == 0){
+        setpoint_y++;
+    }else if(min_heading == 1){
+        setpoint_x++;
+    }else if(min_heading == 2){
+        setpoint_y--;
+    }else{
+        setpoint_x--;
+    }
+
+    //If you new flood fill cell is equal to or higher than the
+    //than the current flood fill cell, update current cell value to value+1;
+    if (current_region <= get_flood_fill_map_value(setpoint_x,setpoint_y)){
+
+        //update current cell by (next cell + 1)
+        current_region = get_flood_fill_map_value(setpoint_x,setpoint_y)+1;
+
+        //Update flood fill map as well
+        set_flood_fill_map_value(pos_x_int, pos_y_int, current_region);
+        /*
+        //Add last position to stack
+        if (!(coordinate_visited.end() == std::make_pair(0,0) && coordinate_visited.size() == 1)) {
+            coordinate_visited.push_back(std::make_pair(pos_x_int, pos_y_int));
+        }
+       */
+    }
+
+
+
 } //Function
 
 
@@ -524,7 +598,7 @@ void PathPlanner::check_for_walls(){
     // If so, we want to check for walls while being close to this point
     if (fabs(pos_y_int - pos_y) < 0.4 && fabs(pos_x_int - pos_x) < 0.4){
         // Check for walls in front:
-        if (dist_mid < 0.8 && direction != -1){
+        if (dist_mid < 1.2 && direction != -1){
             std::cout << "Found wall in front" << std::endl;
             set_wall(pos_x_int, pos_y_int, direction);
         }
