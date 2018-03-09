@@ -90,6 +90,9 @@ PathPlanner::PathPlanner(ros::NodeHandle &nh){
     dist_left = 3;
 
     // Generating a path for the bot to follow. (x,y) coordinates:
+    /*
+
+    // Test points for world 1:
     path_points     << 0 << 1 << endr
                     << 0 << 2 << endr
                     << 0 << 3 << endr
@@ -129,6 +132,71 @@ PathPlanner::PathPlanner(ros::NodeHandle &nh){
                     << 4 << 1 << endr
                     << 4 << 2 << endr
                     << 4 << 3 << endr
+                    << 4 << 4 << endr;
+      */
+
+    // Test points for world 2:
+    path_points     << 0 << 1 << endr
+                    << 0 << 2 << endr
+                    << 0 << 3 << endr
+                    << 0 << 4 << endr
+                    << 0 << 5 << endr
+                    << 0 << 6 << endr
+                    << 1 << 6 << endr
+                    << 2 << 6 << endr
+                    << 3 << 6 << endr
+                    << 4 << 6 << endr
+                    << 3 << 6 << endr
+                    << 2 << 6 << endr
+                    << 1 << 6 << endr
+                    << 0 << 6 << endr
+                    << 0 << 7 << endr
+                    << 0 << 8 << endr
+                    << 0 << 7 << endr
+                    << 0 << 6 << endr
+                    << 0 << 5 << endr
+                    << 0 << 4 << endr
+                    << 0 << 3 << endr
+                    << 0 << 2 << endr
+                    << 1 << 2 << endr
+                    << 2 << 2 << endr
+                    << 2 << 3 << endr
+                    << 2 << 4 << endr
+                    << 2 << 5 << endr
+                    << 1 << 5 << endr
+                    << 1 << 4 << endr
+                    << 1 << 3 << endr
+                    << 1 << 4 << endr
+                    << 1 << 5 << endr
+                    << 2 << 5 << endr
+                    << 3 << 5 << endr
+                    << 4 << 5 << endr
+                    << 5 << 5 << endr
+                    << 5 << 6 << endr
+                    << 5 << 7 << endr
+                    << 6 << 7 << endr
+                    << 7 << 7 << endr
+                    << 6 << 7 << endr
+                    << 6 << 6 << endr
+                    << 6 << 5 << endr
+                    << 6 << 4 << endr
+                    << 6 << 3 << endr
+                    << 6 << 2 << endr
+                    << 6 << 1 << endr
+                    << 6 << 0 << endr
+                    << 5 << 0 << endr
+                    << 4 << 0 << endr
+                    << 3 << 0 << endr
+                    << 2 << 0 << endr
+                    << 1 << 0 << endr
+                    << 1 << 1 << endr
+                    << 2 << 1 << endr
+                    << 3 << 1 << endr
+                    << 4 << 1 << endr
+                    << 5 << 1 << endr
+                    << 5 << 2 << endr
+                    << 5 << 3 << endr
+                    << 5 << 4 << endr
                     << 4 << 4 << endr;
 
     setpoint_x = path_points(current_point, 0);
@@ -175,7 +243,9 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
         //current_point++;
         //setpoint_x = path_points(current_point, 0);
         //setpoint_y = path_points(current_point, 1);
-        current_point++;
+        if (setpoint_x != 4 && setpoint_y != 4){
+            current_point++;
+        }
         setpoint_x_prev = setpoint_x;
         setpoint_y_prev = setpoint_y;
         setpoint_x = path_points(current_point, 0);
@@ -197,7 +267,6 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
 
     // Converting quaterninon to yaw angle:
     ang_z = -atan2((2.0 * (w*z + x*y)), (1.0 - 2.0 * (y*y + z*z)));
-    //std::cout << "Angle: " << ang_z << std::endl;
 
     cmd_x_y_yaw.x = pos_x;
     cmd_x_y_yaw.y = pos_y;
@@ -455,7 +524,7 @@ void PathPlanner::set_wall(int pos_x_int, int pos_y_int, int direction){
         }
 
         std::cout << pos_x_int << ", " << pos_y_int << ")" << std::endl;
-        std::cout << "New wall map:" << std::endl;
+        //std::cout << "New wall map:" << std::endl;
         //printWallMap();
     }
 }
@@ -525,25 +594,25 @@ void PathPlanner::check_for_walls(){
     if (fabs(pos_y_int - pos_y) < 0.4 && fabs(pos_x_int - pos_x) < 0.4){
         // Check for walls in front:
         if (dist_mid < 0.8 && direction != -1){
-            std::cout << "Found wall in front" << std::endl;
+            //std::cout << "Found wall in front" << std::endl;
             set_wall(pos_x_int, pos_y_int, direction);
         }
     }
 
     // Check for walls adjacent to the node we are going to if we are close to the coordinate in between the setpoints
-    if (fabs((setpoint_x*0.2 + setpoint_x_prev*0.8) - pos_x) < 0.1 && fabs((setpoint_y*0.2 + setpoint_y_prev*0.8) - pos_y) < 0.1){
+    if (fabs((setpoint_x*0.3 + setpoint_x_prev*0.7) - pos_x) < 0.05 && fabs((setpoint_y*0.3 + setpoint_y_prev*0.7) - pos_y) < 0.05){
         // Check for walls to the side of the node front of the current position
 
-        if (dist_left < 1.4 && direction != -1){
-            std::cout << "Found wall left" << std::endl;
+        if (dist_left < 1.0 && direction != -1){
+            //std::cout << "Found wall left" << std::endl;
             // Wall left for the node in front
             int wall_direction = direction - 1; // Direction shifted counterclockwise since wall to left
             if (wall_direction < 0 ){wall_direction = 3;} // If we go from north(=0) to west(=3)
             set_wall(setpoint_x_int, setpoint_y_int, wall_direction);
         }
 
-        if (dist_right < 1.4 && direction != -1){
-            std::cout << "Found wall right" << std::endl;
+        if (dist_right < 1.0 && direction != -1){
+            //std::cout << "Found wall right" << std::endl;
             // Wall right for the node in front
             int wall_direction = direction + 1; // Direction shifted clockwise since wall to right
             if (wall_direction > 3 ){wall_direction = 0;} // If we go from west(=3) to north(=0)
