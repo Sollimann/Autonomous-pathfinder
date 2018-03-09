@@ -292,6 +292,10 @@ void PathPlanner::set_next_destination_cell() {
     }
 
 
+
+
+
+    /*
     //If wall is registered and sector has not been checked
     if (wall_vec(min_position) == OPEN) {
         setpoint_x = pos_x_int;
@@ -300,9 +304,9 @@ void PathPlanner::set_next_destination_cell() {
 
         //holding while robot is turning
         if (wall_vec(min_position) == OPEN) {
-            //hvis celle ikke har vegg, så er cellen neste destinatasjon og vi kan endre setpunkt
+            //hvis celle ikke har vegg, så er cellen neste destinasjon og vi kan endre setpunkt
 
-    
+
         } else if (wall_vec(min_position) == WALL) {
             //Må oppdatere wall_vec
             //wall_vec = get_wall(pos_x_int,pos_y_int);
@@ -313,7 +317,9 @@ void PathPlanner::set_next_destination_cell() {
             //cmd_setpoint.z = 4; //value 5 indicates that we want to give our next destination
         }
     }
-}
+
+    */
+} //Function
 
 
 
