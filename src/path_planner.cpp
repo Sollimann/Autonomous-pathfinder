@@ -28,10 +28,14 @@ private:
     ros::Publisher pub_point;
     ros::Publisher pub_x_y_yaw;
     mat path_points;
+<<<<<<< HEAD
     double pos_x, pos_y, ang_z, setpoint_x, setpoint_y;
     int pos_x_int_last, pos_y_int_last, setpoint_heading;
+=======
+    double pos_x, pos_y, ang_z, setpoint_x, setpoint_y, setpoint_x_prev, setpoint_y_prev;
+>>>>>>> master
     int current_point;
-    double threshold_switch, dt, PI, dist_mid;
+    double threshold_switch, dt, PI, dist_mid, dist_left, dist_right;
     cube wall_map;
 
     //Flood fill
@@ -56,6 +60,7 @@ public:
     void printWallMap();
     void spin();
     void set_wall(int pos_x_int, int pos_y_int, int direction);
+<<<<<<< HEAD
     vec get_wall(int pos_x_int, int pos_y_int);
     void fill_walls();
 
@@ -69,6 +74,9 @@ public:
 
     //Track the path of the robot
     //Stack
+=======
+    void check_for_walls();
+>>>>>>> master
 };
 
 
@@ -86,6 +94,8 @@ PathPlanner::PathPlanner(ros::NodeHandle &nh){
     dt = 0.1;
     PI = 3.14159265;
     dist_mid = 3;
+    dist_right = 3;
+    dist_left = 3;
 
     // Generating a path for the bot to follow. (x,y) coordinates:
     path_points     << 0 << 1 << endr
@@ -123,11 +133,7 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
     pos_y = poseMsg->pose.pose.position.x;
     pos_x = -(poseMsg->pose.pose.position.y);
 
-    // Check if x and y coordinate is close to a node position. Close = within 0.2m x 0.2m square around node position
-    // If so, we want to check for walls while being close to this point
-    if (fabs(round(pos_y) - pos_y) < 0.4 && fabs(round(pos_x) - pos_x) < 0.4){
-        fill_walls();
-    }
+    check_for_walls();
 
     //setpoint_x = path_points(current_point, 0);
     //setpoint_y = path_points(current_point, 1);
@@ -140,16 +146,28 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
 
     if (error_pos < threshold_switch){
 
+<<<<<<< HEAD
         //set_next_destination_cell();
 
         //current_point++;
         //setpoint_x = path_points(current_point, 0);
         //setpoint_y = path_points(current_point, 1);
+=======
+        current_point++;
+        setpoint_x_prev = setpoint_x;
+        setpoint_y_prev = setpoint_y;
+        setpoint_x = path_points(current_point, 0);
+        setpoint_y = path_points(current_point, 1);
+>>>>>>> master
     }
 
     cmd_setpoint.x = setpoint_x;
     cmd_setpoint.y = setpoint_y;
+<<<<<<< HEAD
     //cmd_setpoint.z = 0;
+=======
+    cmd_setpoint.z = 4;
+>>>>>>> master
 
     pub_point.publish(cmd_setpoint);
 
@@ -171,6 +189,8 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
 
 void PathPlanner::callback_distances( const std_msgs::Float32MultiArray& distMsg){
     dist_mid = distMsg.data[1];
+    dist_left = distMsg.data[0];
+    dist_right = distMsg.data[2];
 }
 
 void PathPlanner::initializeWallMap(){
@@ -417,6 +437,7 @@ void PathPlanner::set_wall(int pos_x_int, int pos_y_int, int direction){
         }
 
         std::cout << pos_x_int << ", " << pos_y_int << ")" << std::endl;
+<<<<<<< HEAD
         std::cout << "New wall map:" << std::endl;
         //printWallMap();
     }
@@ -430,6 +451,10 @@ int PathPlanner::arma_min_index(vec v){
             min = i;
             TEMP = v(i);
         }
+=======
+        //std::cout << "New wall map:" << std::endl;
+        //printWallMap();
+>>>>>>> master
     }
     return min;
 }
@@ -448,9 +473,12 @@ vec PathPlanner::get_wall(int pos_x_int, int pos_y_int){
     return wall;
 }
 
-void PathPlanner::fill_walls(){
+
+void PathPlanner::check_for_walls(){
     int pos_x_int = (int) round(pos_x);
     int pos_y_int = (int) round(pos_y);
+    int setpoint_x_int = (int) round(setpoint_x);
+    int setpoint_y_int = (int) round(setpoint_y);
     int direction = -1;
     double ang_z_deg = ang_z * 180.0 / PI;
 
@@ -470,13 +498,48 @@ void PathPlanner::fill_walls(){
         direction = 3; // West
     }
 
+<<<<<<< HEAD
     if (dist_mid < 1.5 && direction != -1){
         set_wall(pos_x_int, pos_y_int, direction);
     }else if(direction != -1){
         sector_checked = true;
     }else{sector_checked = false;}
 
+=======
+    // Check if x and y coordinate is close to a node position. Close = within 0.4m x 0.4m square around node position
+    // If so, we want to check for walls while being close to this point
+    if (fabs(pos_y_int - pos_y) < 0.4 && fabs(pos_x_int - pos_x) < 0.4){
+        // Check for walls in front:
+        if (dist_mid < 0.8 && direction != -1){
+            std::cout << "Found wall in front" << std::endl;
+            set_wall(pos_x_int, pos_y_int, direction);
+        }
+    }
+
+    // Check for walls adjacent to the node we are going to if we are close to the coordinate in between the setpoints
+    if (fabs((setpoint_x*0.2 + setpoint_x_prev*0.8) - pos_x) < 0.1 && fabs((setpoint_y*0.2 + setpoint_y_prev*0.8) - pos_y) < 0.1){
+        // Check for walls to the side of the node front of the current position
+
+        if (dist_left < 1.0 && direction != -1){
+            std::cout << "Found wall left" << std::endl;
+            // Wall left for the node in front
+            int wall_direction = direction - 1; // Direction shifted counterclockwise since wall to left
+            if (wall_direction < 0 ){wall_direction = 3;} // If we go from north(=0) to west(=3)
+            set_wall(setpoint_x_int, setpoint_y_int, wall_direction);
+        }
+
+        if (dist_right < 1.0 && direction != -1){
+            std::cout << "Found wall right" << std::endl;
+            // Wall right for the node in front
+            int wall_direction = direction + 1; // Direction shifted clockwise since wall to right
+            if (wall_direction > 3 ){wall_direction = 0;} // If we go from west(=3) to north(=0)
+            set_wall(setpoint_x_int, setpoint_y_int, wall_direction);
+        }
+
+    }
+>>>>>>> master
 }
+
 
 
 void PathPlanner::spin(){
