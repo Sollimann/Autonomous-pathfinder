@@ -26,41 +26,36 @@ private:
     ros::Subscriber sub_dist;
     ros::Publisher pub_point;
     ros::Publisher pub_x_y_yaw;
-    mat path_points;
 
-    int pos_x_int_last, pos_y_int_last;
-    double pos_x, pos_y, ang_z, setpoint_x, setpoint_y, setpoint_x_prev, setpoint_y_prev;
-    int current_point;
-    double threshold_switch, dt, PI, dist_mid, dist_left, dist_right;
+    int pos_x_int_last, pos_y_int_last, setpoint_x, setpoint_y, setpoint_x_prev, setpoint_y_prev;
+    double pos_x, pos_y, ang_z, THRESHOLD_SWITCH, dt, PI, dist_mid, dist_left, dist_right;
     cube wall_map;
 
     //Flood fill
     mat flood_fill_map;
-    vec region = zeros<vec>(4);
-    int min_heading;
-    int current_region;
-
-    std::deque<pair<int,int> > coordinate_visited;
+    vec neighbour_flood_fill_values = zeros<vec>(4);
+    int min_heading, current_flood_fill_value;
 
 public:
     PathPlanner(ros::NodeHandle &nh);
-    void callback_odom( const nav_msgs::OdometryConstPtr& poseMsg);
-    void callback_distances( const std_msgs::Float32MultiArray& distMsg);
+    void callbackOdom( const nav_msgs::OdometryConstPtr& poseMsg);
+    void callbackDistances( const std_msgs::Float32MultiArray& distMsg);
     void initializeWallMap();
     void printWallMap();
     void printQueue(std::deque<pair<int,int> > queue);
     void spin();
-    void set_wall(int pos_x_int, int pos_y_int, int direction);
-    bool hasWall(int pos_x_int, int pos_y_int, int direction);
-    void fill_walls();
-    void check_for_walls();
+    void setWall(int x_pos, int y_pos, int direction);
+    bool hasWall(int x_pos, int y_pos, int direction);
+    void checkForWalls();
 
     //Flood fill
     void initializeFloodFillMap();
-    void set_flood_fill_map_value(int x_pos, int y_pos, int value);
-    int get_flood_fill_map_value(int x_pos, int y_pos);
-    bool check_stack(int pos_x, int pos_y, int heading);
-    void set_next_destination_cell();
+    void setFloodFillMapValue(int x_pos, int y_pos, int value);
+    int getFloodFillMapValue(int x_pos, int y_pos);
+    bool isPreviousPosition(int x_pos, int y_pos, int heading);
+    void setNextDestinationCell();
+    void updateFloodFillMap();
+    //void visitNode(int x_pos, int y_pos);
 
 };
 
@@ -72,27 +67,24 @@ PathPlanner::PathPlanner(ros::NodeHandle &nh){
     pos_x_int_last = -1;
     pos_y_int_last = -1;
 
-    // Setting the row of path_points which is the current target setpoint
-    current_point = 0;
-    threshold_switch = 0.0025;
+    THRESHOLD_SWITCH = 0.0025;
     dt = 0.1;
     PI = 3.14159265;
     dist_mid = 3;
     dist_right = 3;
     dist_left = 3;
-
-    //Add last position to stack
-    coordinate_visited.push_back(std::make_pair(0,0));
+    setpoint_x = 0;
+    setpoint_y = 0;
 
     // Defining subscribers and publishers:
-    sub_pos = nh.subscribe("/odom",1,&PathPlanner::callback_odom, this);
-    sub_dist = nh.subscribe("/distance_logger/distances",1,&PathPlanner::callback_distances, this);
+    sub_pos = nh.subscribe("/odom",1,&PathPlanner::callbackOdom, this);
+    sub_dist = nh.subscribe("/distance_logger/distances",1,&PathPlanner::callbackDistances, this);
     pub_point = nh.advertise<geometry_msgs::Point>("/pathplanner/setpoint",1);
     pub_x_y_yaw = nh.advertise<geometry_msgs::Point>("pathplanner/x_y_yaw",1);
 
 }
 
-void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
+void PathPlanner::callbackOdom( const nav_msgs::OdometryConstPtr& poseMsg){
 
     geometry_msgs::Point cmd_setpoint;
     geometry_msgs::Point cmd_x_y_yaw;
@@ -107,13 +99,18 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
     pos_x = -(poseMsg->pose.pose.position.y);
     double error_pos = (setpoint_x - pos_x) * (setpoint_x - pos_x) + (setpoint_y - pos_y) * (setpoint_y - pos_y);
 
-    check_for_walls();
+    checkForWalls();
 
-    if (error_pos < threshold_switch){
+    if (error_pos < THRESHOLD_SWITCH){
 
         setpoint_x_prev = setpoint_x;
         setpoint_y_prev = setpoint_y;
-        set_next_destination_cell();
+
+        if (!(setpoint_x == 4 && setpoint_y == 4)){
+            updateFloodFillMap();
+            setNextDestinationCell();
+        }
+
     }
 
     cmd_setpoint.x = setpoint_x;
@@ -137,7 +134,7 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
     pub_x_y_yaw.publish(cmd_x_y_yaw);
 }
 
-void PathPlanner::callback_distances( const std_msgs::Float32MultiArray& distMsg){
+void PathPlanner::callbackDistances( const std_msgs::Float32MultiArray& distMsg){
     dist_mid = distMsg.data[1];
     dist_left = distMsg.data[0];
     dist_right = distMsg.data[2];
@@ -234,117 +231,85 @@ void PathPlanner::printQueue(std::deque<pair<int,int> > stack) {
 }
 
 
-bool PathPlanner::check_stack(int pos_x, int pos_y, int heading){
-    //This function will check if we have already been in the
-//point that we are looking at
+bool PathPlanner::isPreviousPosition(int x_pos, int y_pos, int heading){
 
-    //get next coordinate
     if (heading == 0){
-        pos_y++;
+        y_pos++;
     }else if(heading == 1){
-        pos_x++;
+        x_pos++;
     }else if(heading == 2){
-        pos_y--;
+        y_pos--;
     }else{
-        pos_x--;
+        x_pos--;
     }
 
-    //check if coordinate is last in stack
-    return (coordinate_visited.back().first == pos_x && coordinate_visited.back().second == pos_y);
+    return (x_pos == pos_x_int_last && y_pos == pos_y_int_last);
+
 }
 
 
-void PathPlanner::set_next_destination_cell() {
+void PathPlanner::setNextDestinationCell() {
+    std::cout << "Switching set point..." << std::endl;
 
     // 1.) Detect my current cell
     int pos_x_int = (int) round(pos_x);
     int pos_y_int = (int) round(pos_y);
 
     // 2.) Update the stack with all visited locations
-    if ((pos_x_int != pos_x_int_last) || (pos_y_int != pos_y_int_last)) {
+    neighbour_flood_fill_values(0) = getFloodFillMapValue(pos_x_int, pos_y_int + 1);
+    neighbour_flood_fill_values(1) = getFloodFillMapValue(pos_x_int + 1, pos_y_int);
+    neighbour_flood_fill_values(2) = getFloodFillMapValue(pos_x_int, pos_y_int - 1);
+    neighbour_flood_fill_values(3) = getFloodFillMapValue(pos_x_int - 1, pos_y_int);
 
-        //Fill up the region with flood fill values [N,E,S,W]
-        //region[int,int,int,int]
-        region(0) = get_flood_fill_map_value(pos_x_int, pos_y_int + 1);
-        region(1) = get_flood_fill_map_value(pos_x_int + 1, pos_y_int);
-        region(2) = get_flood_fill_map_value(pos_x_int, pos_y_int - 1);
-        region(3) = get_flood_fill_map_value(pos_x_int - 1, pos_y_int);
+    //std::cout << "Printed flood fill values to neighbours: " << std::endl;
+    //neighbour_flood_fill_values.print();
 
-        std::cout << "print flood fill vector: " << std::endl;
-        region.print();
+    //Update the flood fill value of my current cell
+    current_flood_fill_value = getFloodFillMapValue(pos_x_int, pos_y_int);
 
-        //Update the flood fill value of my current cell
-        current_region = get_flood_fill_map_value(pos_x_int,pos_y_int);
-    }
-
-    pos_x_int_last = pos_x_int;
-    pos_y_int_last = pos_y_int;
-
-
-    //Checking lowest value cell entry has a wall
-    //Find the lowest entry without a registered wall
-
+    // Find the neighbouring cell without a wall in between with the lowest flood fill value
     int minimumReachableFloodFillValue = 10000;
     for (int i = 0; i < 4; i++){
-        if (hasWall(pos_x_int, pos_y_int, i)){
-            // ignore this direction
-        }
-        else{
+        if (!hasWall(pos_x_int, pos_y_int, i)){
             //Evaluate if this is the next destination
-            int neighbourCellFloodFillValue = region(i);
+            int neighbourCellFloodFillValue = neighbour_flood_fill_values(i);
             if (neighbourCellFloodFillValue < minimumReachableFloodFillValue){
                 minimumReachableFloodFillValue = neighbourCellFloodFillValue;
                 min_heading = i;
                 std::cout << "n < m" << std::endl;
             }
-            if (neighbourCellFloodFillValue == minimumReachableFloodFillValue){
+            else if (neighbourCellFloodFillValue == minimumReachableFloodFillValue){
                 std::cout << "n == m" << std::endl;
-                // prioritize another heading than where we came from
-                if(check_stack(pos_x_int, pos_y_int, min_heading)){
+                // Prioritize another heading than where we came from
+                if(isPreviousPosition(pos_x_int, pos_y_int, min_heading)){
                     min_heading = i;
-                    std::cout << "check stack true" << std::endl;
+                    std::cout << "isPreviousPosition true" << std::endl;
                 }
             }
         }
     }
 
 
-        std::cout << "best heading: " << min_heading << std::endl;
+    std::cout << "Best heading: " << min_heading << std::endl;
 
-        //New setpoint
-        if (min_heading == 0) {
-            setpoint_y++;
-        } else if (min_heading == 1) {
-            setpoint_x++;
-        } else if (min_heading == 2) {
-            setpoint_y--;
-        } else {
-            setpoint_x--;
-        }
+    //New setpoint
+    if (min_heading == 0) {
+        setpoint_y++;
+    } else if (min_heading == 1) {
+        setpoint_x++;
+    } else if (min_heading == 2) {
+        setpoint_y--;
+    } else {
+        setpoint_x--;
+    }
 
-        //If you new flood fill cell is equal to or higher than the
-        //than the current flood fill cell, update current cell value to value+1;
-        if (current_region <= get_flood_fill_map_value(setpoint_x, setpoint_y)) {
+    //Print flood fill
+    std::cout << "Flood fill map: " << std::endl;
+    flood_fill_map.print();
+    std::cout << std::endl;
 
-            //update current cell by (next cell + 1)
-            current_region = get_flood_fill_map_value(setpoint_x, setpoint_y) + 1;
-
-            //Update flood fill map as well
-            set_flood_fill_map_value(pos_x_int, pos_y_int, current_region);
-            std::cout << "setting new flood fill value" << std::endl;
-
-        }
-
-        //Add current position to stack
-        std::cout << "Adding current coordinate to stack" << std::endl;
-        coordinate_visited.push_back(std::make_pair(pos_x_int, pos_y_int));
-
-        //Print flood fill
-        std::cout << "Flood fill map: " << std::endl;
-        flood_fill_map.print();
-        std::cout << std::endl;
-        //Print stack
-        printQueue(coordinate_visited);
+    pos_x_int_last = pos_x_int;
+    pos_y_int_last = pos_y_int;
 
 }
 
@@ -362,6 +327,17 @@ void PathPlanner::initializeFloodFillMap(){
                     << 6 << 5 << 4 << 3 << 2 << 3 << 4 << 5 << 6 << endr
                     << 7 << 6 << 5 << 4 << 3 << 4 << 5 << 6 << 7 << endr
                     << 8 << 7 << 6 << 5 << 4 << 5 << 6 << 7 << 8 << endr;
+
+    flood_fill_map  << 0 << 0 << 0 << 0 << 0 << 0 << 0 << 0 << 0 << endr
+                    << 0 << 0 << 0 << 0 << 0 << 0 << 0 << 0 << 0 << endr
+                    << 0 << 0 << 0 << 0 << 0 << 0 << 0 << 0 << 0 << endr
+                    << 0 << 0 << 0 << 0 << 0 << 0 << 0 << 0 << 0 << endr
+                    << 0 << 0 << 0 << 0 << 0 << 0 << 0 << 0 << 0 << endr
+                    << 0 << 0 << 0 << 0 << 0 << 0 << 0 << 0 << 0 << endr
+                    << 0 << 0 << 0 << 0 << 0 << 0 << 0 << 0 << 0 << endr
+                    << 0 << 0 << 0 << 0 << 0 << 0 << 0 << 0 << 0 << endr
+                    << 0 << 0 << 0 << 0 << 0 << 0 << 0 << 0 << 0 << endr;
+
     /*
     flood_fill_map      << 16 << 15 << 14 << 13 << 12 << 11 << 10 << 9 << 8 << endr
                         << 15 << 14 << 13 << 12 << 11 << 10 << 9 << 8 << 7 << endr
@@ -380,11 +356,11 @@ void PathPlanner::initializeFloodFillMap(){
 }
 
 
-void PathPlanner::set_flood_fill_map_value(int x_pos, int y_pos, int value){
+void PathPlanner::setFloodFillMapValue(int x_pos, int y_pos, int value){
     flood_fill_map(8 - y_pos, x_pos) = value;
 }
 
-int PathPlanner::get_flood_fill_map_value(int x_pos, int y_pos){
+int PathPlanner::getFloodFillMapValue(int x_pos, int y_pos){
 
     if (x_pos < 0 || y_pos < 0 || x_pos > 8 || y_pos > 8){
         return 1000;}
@@ -393,40 +369,40 @@ int PathPlanner::get_flood_fill_map_value(int x_pos, int y_pos){
 }
 
 
-void PathPlanner::set_wall(int pos_x_int, int pos_y_int, int direction){
+void PathPlanner::setWall(int x_pos, int y_pos, int direction){
     // direction is a number = {0=North, 1=East, 2=South, 3=west}
     // (row,col)=(0,0) is bottom left
     // (row,col)=(0,8) is bottom right
     // (row,col)=(8,8) is top right
     // (row,col)=(8,0) is top left
 
-    if (wall_map(pos_y_int, pos_x_int, direction) != WALL) {
+    if (wall_map(y_pos, x_pos, direction) != WALL) {
         // Detected a wall we did not know about
-        wall_map(pos_y_int, pos_x_int, direction) = WALL;
+        wall_map(y_pos, x_pos, direction) = WALL;
 
-        if (direction == 0 && pos_y_int != 8) { //North wall. Fill south wall to adjecent node
-            wall_map(pos_y_int + 1, pos_x_int, 2) = WALL;
+        if (direction == 0 && y_pos != 8) { //North wall. Fill south wall to adjecent node
+            wall_map(y_pos + 1, x_pos, 2) = WALL;
             std::cout << "Wall detected north for position (x,y) = (";
-        } else if (direction == 1 && pos_x_int != 8) { //East wall. Fill west wall to adjecent node
-            wall_map(pos_y_int, pos_x_int + 1, 3) = WALL;
+        } else if (direction == 1 && x_pos != 8) { //East wall. Fill west wall to adjecent node
+            wall_map(y_pos, x_pos + 1, 3) = WALL;
             std::cout << "Wall detected east for position (x,y) = (";
-        } else if (direction == 2 && pos_y_int != 0) { //South wall. Fill north wall to adjecent node
-            wall_map(pos_y_int - 1, pos_x_int, 0) = WALL;
+        } else if (direction == 2 && y_pos != 0) { //South wall. Fill north wall to adjecent node
+            wall_map(y_pos - 1, x_pos, 0) = WALL;
             std::cout << "Wall detected south for position (x,y) = (";
-        } else if (direction == 3 && pos_x_int != 0) { //West wall. Fill east wall to adjecent node
-            wall_map(pos_y_int, pos_x_int - 1, 1) = WALL;
+        } else if (direction == 3 && x_pos != 0) { //West wall. Fill east wall to adjecent node
+            wall_map(y_pos, x_pos - 1, 1) = WALL;
             std::cout << "Wall detected west for position (x,y) = (";
         }
 
-        std::cout << pos_x_int << ", " << pos_y_int << ")" << std::endl;
+        std::cout << x_pos << ", " << y_pos << ")" << std::endl;
         //std::cout << "New wall map:" << std::endl;
         //printWallMap();
     }
 }
 
 
-bool PathPlanner::hasWall(int pos_x_int, int pos_y_int, int direction){
-    if (wall_map(pos_y_int, pos_x_int, direction) == WALL){
+bool PathPlanner::hasWall(int x_pos, int y_pos, int direction){
+    if (wall_map(y_pos, x_pos, direction) == WALL){
         return true;
     }
     else{
@@ -434,11 +410,9 @@ bool PathPlanner::hasWall(int pos_x_int, int pos_y_int, int direction){
     }
 }
 
-void PathPlanner::check_for_walls(){
+void PathPlanner::checkForWalls(){
     int pos_x_int = (int) round(pos_x);
     int pos_y_int = (int) round(pos_y);
-    int setpoint_x_int = (int) round(setpoint_x);
-    int setpoint_y_int = (int) round(setpoint_y);
     int direction = -1;
     double ang_z_deg = ang_z * 180.0 / PI;
 
@@ -463,12 +437,12 @@ void PathPlanner::check_for_walls(){
     if (fabs(pos_y_int - pos_y) < 0.4 && fabs(pos_x_int - pos_x) < 0.4){
         // Check for walls in front:
         if (dist_mid < 0.8 && direction != -1){
-            if (hasWall(pos_x_int,pos_y_int, direction)){std::cout << "Found wall in front of current node" << std::endl;}
-            set_wall(pos_x_int, pos_y_int, direction);
+            if (!hasWall(pos_x_int,pos_y_int, direction)){std::cout << "Found wall in front of current node" << std::endl;}
+            setWall(pos_x_int, pos_y_int, direction);
         }
         else if (dist_mid < 1.5 && direction != -1){
-            if (hasWall(setpoint_x_int,setpoint_y_int, direction)){std::cout << "Found wall in front of setpoint node" << std::endl;}
-            set_wall(setpoint_x_int, setpoint_y_int, direction);
+            if (!hasWall(setpoint_x, setpoint_y, direction)){std::cout << "Found wall in front of setpoint node" << std::endl;}
+            setWall(setpoint_x, setpoint_y, direction);
         }
     }
 
@@ -481,8 +455,8 @@ void PathPlanner::check_for_walls(){
             // Wall left for the node in front
             int wall_direction = direction - 1; // Direction shifted counterclockwise since wall to left
             if (wall_direction < 0 ){wall_direction = 3;} // If we go from north(=0) to west(=3)
-            if (hasWall(setpoint_x_int,setpoint_y_int, wall_direction)){std::cout << "Found wall left" << std::endl;}
-            set_wall(setpoint_x_int, setpoint_y_int, wall_direction);
+            if (!hasWall(setpoint_x, setpoint_y, wall_direction)){std::cout << "Found wall left" << std::endl;}
+            setWall(setpoint_x, setpoint_y, wall_direction);
         }
 
         if (dist_right < 1.2 && direction != -1){
@@ -490,13 +464,75 @@ void PathPlanner::check_for_walls(){
             // Wall right for the node in front
             int wall_direction = direction + 1; // Direction shifted clockwise since wall to right
             if (wall_direction > 3 ){wall_direction = 0;} // If we go from west(=3) to north(=0)
-            if (hasWall(setpoint_x_int,setpoint_y_int, wall_direction)){std::cout << "Found wall right" << std::endl;}
-            set_wall(setpoint_x_int, setpoint_y_int, wall_direction);
+            if (!hasWall(setpoint_x,setpoint_y, wall_direction)){std::cout << "Found wall right" << std::endl;}
+            setWall(setpoint_x, setpoint_y, wall_direction);
         }
-
     }
 }
 
+
+void PathPlanner::updateFloodFillMap(){
+    std::cout << "Updating flood fill map..." << std::endl;
+
+    int pos_x_int = (int) round(pos_x);
+    int pos_y_int = (int) round(pos_y);
+
+    mat visited_flood_fill_map(9, 9, fill::zeros);
+    mat is_queued(9, 9, fill::zeros);
+
+    std::deque<pair<int,int> > flood_fill_queue;
+    flood_fill_queue.push_back(std::make_pair(4,4));
+    pair<int,int> node;
+    node = flood_fill_queue.front();
+    int distance_from_goal_to_node = 0;
+    int nrVisited = 0;
+
+    while (nrVisited < 81){ // While not all nodes are visited
+
+        // Assign all nodes in the queue with their distance
+        int queue_length = flood_fill_queue.size();
+        int x_queue, y_queue;
+        for (unsigned i=0; i < queue_length; i++){
+            node = flood_fill_queue.at(i);
+            std::cout << "nrVisited: " << nrVisited << "\t Visiting (x,y)=(" << node.first << ", " << node.second;
+            std::cout << ") and assigning it the value " << distance_from_goal_to_node << std::endl;
+            setFloodFillMapValue(node.first, node.second, distance_from_goal_to_node);
+            visited_flood_fill_map(node.first, node.second) = 1; //visited
+            nrVisited++;
+        }
+
+        // Add the neighbours off all newly visited nodes to the new queue
+        for(unsigned j = 0; j < queue_length; j++){ //For each node in the queue
+            node = flood_fill_queue.at(j);
+            for (int i = 0; i < 4; i++){ // Check in all 4 directions for unvisited open space, and if so, add to queue
+                if (!hasWall(node.first, node.second, i)){
+                    std::cout << "Open space in direction " << i << " to position (" << node.first << ", " << node.second << ")" << std::endl;
+                    if (i == 0){x_queue = node.first;       y_queue = node.second + 1;}
+                    if (i == 1){x_queue = node.first + 1;   y_queue = node.second;}
+                    if (i == 2){x_queue = node.first;       y_queue = node.second - 1;}
+                    if (i == 3){x_queue = node.first - 1;   y_queue = node.second;}
+
+                    // If the cell is not visited before and is not already in the queue -> queue it!
+                    if (visited_flood_fill_map(x_queue, y_queue) != 1 && is_queued(x_queue, y_queue) != 1){
+                        flood_fill_queue.push_back(std::make_pair(x_queue, y_queue));
+                        is_queued(x_queue, y_queue) = 1;
+                    }
+                }
+            }
+        }
+
+        // Remove the visited nodes from the queue:
+        for (int i = 0; i < queue_length; i++){
+            flood_fill_queue.pop_front();
+        }
+
+        // Next iteration in breadth first search. Increase the distance
+        distance_from_goal_to_node++;
+        std::cout << "Increase distance_from_goal_to_node to: " << distance_from_goal_to_node << std::endl;
+
+        printQueue(flood_fill_queue);
+    }
+}
 
 
 void PathPlanner::spin(){
@@ -508,16 +544,15 @@ void PathPlanner::spin(){
     }
 }
 
-PathPlanner *pp;
 
 int main(int argc, char** argv){
     ros::init(argc, argv, "path_planner");
     ros::NodeHandle nh;
+
+    PathPlanner *pp;
     PathPlanner temp_pp(nh);
     pp = &temp_pp;
     pp->spin();
 
-    //PathPlanner pp(nh);
-    //ros::spin();
     return 0;
 }
