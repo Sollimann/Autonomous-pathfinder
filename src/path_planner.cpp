@@ -10,16 +10,15 @@
 #include <cmath>
 #include <sensor_msgs/LaserScan.h>
 #include <algorithm>
-#include <vector>
+#include <deque>
+#include <queue>
 #include <math.h>
 #include <armadillo>
 #include <std_msgs/Float32.h>
 #include <std_msgs/Float32MultiArray.h>
-
+using namespace std;
 using namespace arma;
-//enum {UNKNOWN = 0, OPEN = 1, WALL = 2};
 enum {OPEN = 0, WALL = 1};
-
 
 class PathPlanner{
 private:
@@ -29,7 +28,7 @@ private:
     ros::Publisher pub_x_y_yaw;
     mat path_points;
 
-    int pos_x_int_last, pos_y_int_last, setpoint_heading;
+    int pos_x_int_last, pos_y_int_last;
     double pos_x, pos_y, ang_z, setpoint_x, setpoint_y, setpoint_x_prev, setpoint_y_prev;
     int current_point;
     double threshold_switch, dt, PI, dist_mid, dist_left, dist_right;
@@ -38,19 +37,10 @@ private:
     //Flood fill
     mat flood_fill_map;
     vec region = zeros<vec>(4);
-    vec TEMP;
-    vec next_pos = zeros<vec>(2);
-    int MAX,MIN;
     int min_heading;
     int current_region;
 
-    //Wall vector
-    vec wall_vec = zeros<vec>(4);
-
-    //Stack of pair coordinates
-    typedef std::pair <int, int> Stack;
-    std::vector<Stack> coordinate_visited;
-    //bool sector_checked;
+    std::deque<pair<int,int> > coordinate_visited;
 
 public:
     PathPlanner(ros::NodeHandle &nh);
@@ -58,12 +48,12 @@ public:
     void callback_distances( const std_msgs::Float32MultiArray& distMsg);
     void initializeWallMap();
     void printWallMap();
+    void printQueue(std::deque<pair<int,int> > queue);
     void spin();
     void set_wall(int pos_x_int, int pos_y_int, int direction);
-    vec get_wall(int pos_x_int, int pos_y_int);
+    bool hasWall(int pos_x_int, int pos_y_int, int direction);
     void fill_walls();
     void check_for_walls();
-
 
     //Flood fill
     void initializeFloodFillMap();
@@ -71,7 +61,6 @@ public:
     int get_flood_fill_map_value(int x_pos, int y_pos);
     bool check_stack(int pos_x, int pos_y, int heading);
     void set_next_destination_cell();
-    int arma_min_index(vec v);
 
 };
 
@@ -85,7 +74,7 @@ PathPlanner::PathPlanner(ros::NodeHandle &nh){
 
     // Setting the row of path_points which is the current target setpoint
     current_point = 0;
-    threshold_switch = 0.01;
+    threshold_switch = 0.0025;
     dt = 0.1;
     PI = 3.14159265;
     dist_mid = 3;
@@ -93,53 +82,7 @@ PathPlanner::PathPlanner(ros::NodeHandle &nh){
     dist_left = 3;
 
     //Add last position to stack
-    coordinate_visited.push_back(std::make_pair(0, 0));
-
-    // Generating a path for the bot to follow. (x,y) coordinates:
-    path_points     << 0 << 1 << endr
-                    << 0 << 2 << endr
-                    << 0 << 3 << endr
-                    << 0 << 4 << endr
-                    << 1 << 4 << endr
-                    << 1 << 5 << endr
-                    << 1 << 6 << endr
-                    << 2 << 6 << endr
-                    << 3 << 6 << endr
-                    << 3 << 7 << endr
-                    << 3 << 8 << endr
-                    << 2 << 8 << endr
-                    << 1 << 8 << endr
-                    << 0 << 8 << endr
-                    << 0 << 7 << endr
-                    << 1 << 7 << endr
-                    << 1 << 8 << endr
-                    << 2 << 8 << endr
-                    << 3 << 8 << endr
-                    << 4 << 8 << endr
-                    << 5 << 8 << endr
-                    << 6 << 8 << endr
-                    << 7 << 8 << endr
-                    << 8 << 8 << endr
-                    << 8 << 7 << endr
-                    << 7 << 7 << endr
-                    << 7 << 6 << endr
-                    << 7 << 5 << endr
-                    << 7 << 4 << endr
-                    << 7 << 3 << endr
-                    << 7 << 2 << endr
-                    << 7 << 1 << endr
-                    << 7 << 0 << endr
-                    << 6 << 0 << endr
-                    << 5 << 0 << endr
-                    << 4 << 0 << endr
-                    << 4 << 1 << endr
-                    << 4 << 2 << endr
-                    << 4 << 3 << endr
-                    << 4 << 4 << endr;
-
-    setpoint_x = path_points(current_point, 0);
-    setpoint_y = path_points(current_point, 1);
-    setpoint_heading = 4;
+    coordinate_visited.push_back(std::make_pair(0,0));
 
     // Defining subscribers and publishers:
     sub_pos = nh.subscribe("/odom",1,&PathPlanner::callback_odom, this);
@@ -162,40 +105,19 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
 
     pos_y = poseMsg->pose.pose.position.x;
     pos_x = -(poseMsg->pose.pose.position.y);
+    double error_pos = (setpoint_x - pos_x) * (setpoint_x - pos_x) + (setpoint_y - pos_y) * (setpoint_y - pos_y);
 
     check_for_walls();
 
-    //setpoint_x = path_points(current_point, 0);
-    //setpoint_y = path_points(current_point, 1);
-
-    double error_pos = (setpoint_x - pos_x) * (setpoint_x - pos_x) + (setpoint_y - pos_y) * (setpoint_y - pos_y);
-    //std::cout << "Setpoint (x,y) =  (" << setpoint_x << ", " << setpoint_y << ")" << std::endl;
-    //std::cout << "Position (x,y) =  (" << pos_x << ", " << pos_y << ")" << std::endl;
-    //std::cout << "Error: " << error << std::endl;
-
-
     if (error_pos < threshold_switch){
 
-
-
-        //current_point++;
-        //setpoint_x = path_points(current_point, 0);
-        //setpoint_y = path_points(current_point, 1);
-
-
-        //current_point++;
         setpoint_x_prev = setpoint_x;
         setpoint_y_prev = setpoint_y;
-        //setpoint_x = path_points(current_point, 0);
-        //setpoint_y = path_points(current_point, 1);
-
         set_next_destination_cell();
-
     }
 
     cmd_setpoint.x = setpoint_x;
     cmd_setpoint.y = setpoint_y;
-    //cmd_setpoint.z = 0;
     cmd_setpoint.z = 4;
 
     pub_point.publish(cmd_setpoint);
@@ -208,7 +130,6 @@ void PathPlanner::callback_odom( const nav_msgs::OdometryConstPtr& poseMsg){
 
     // Converting quaterninon to yaw angle:
     ang_z = -atan2((2.0 * (w*z + x*y)), (1.0 - 2.0 * (y*y + z*z)));
-    //std::cout << "Angle: " << ang_z << std::endl;
 
     cmd_x_y_yaw.x = pos_x;
     cmd_x_y_yaw.y = pos_y;
@@ -299,19 +220,23 @@ void PathPlanner::printWallMap(){
 }
 
 
-//This function will check if we have already been in the
-//point that we are looking at
 
-/*
+void PathPlanner::printQueue(std::deque<pair<int,int> > stack) {
+    std::deque<pair<int,int> > q = stack;
+    std::cout << "Stack: " << endl;
+    while (!q.empty())
+    {
+        std::cout << "(" << q.back().first << " , " << q.back().second << ")" << std::endl;
+        q.pop_back();
+    }
+    std::cout << std::endl;
+    std::cout << "Stack ending " << std::endl;
+}
+
+
 bool PathPlanner::check_stack(int pos_x, int pos_y, int heading){
-
-
-    //Pick last coordinates from stack
-    typedef std::pair<int,int> last;
-
-    last = coordinate_visited.end();
-    int last_x = last.first;
-    int last_y = last.second;
+    //This function will check if we have already been in the
+//point that we are looking at
 
     //get next coordinate
     if (heading == 0){
@@ -325,9 +250,9 @@ bool PathPlanner::check_stack(int pos_x, int pos_y, int heading){
     }
 
     //check if coordinate is last in stack
-    return (last_x == pos_x && last_y == pos_y);
+    return (coordinate_visited.back().first == pos_x && coordinate_visited.back().second == pos_y);
 }
-*/
+
 
 void PathPlanner::set_next_destination_cell() {
 
@@ -338,14 +263,6 @@ void PathPlanner::set_next_destination_cell() {
     // 2.) Update the stack with all visited locations
     if ((pos_x_int != pos_x_int_last) || (pos_y_int != pos_y_int_last)) {
 
-        // 3.) Investigate my surrounding cells
-        // Here we need to check all surrounding four cells
-
-
-        //Check if the surrounding cells already have registered a wall
-        //vec<unsigned int> wall_vec = get_wall(pos_x_int,pos_y_int);
-        wall_vec = get_wall(pos_x_int, pos_y_int);
-
         //Fill up the region with flood fill values [N,E,S,W]
         //region[int,int,int,int]
         region(0) = get_flood_fill_map_value(pos_x_int, pos_y_int + 1);
@@ -353,16 +270,11 @@ void PathPlanner::set_next_destination_cell() {
         region(2) = get_flood_fill_map_value(pos_x_int, pos_y_int - 1);
         region(3) = get_flood_fill_map_value(pos_x_int - 1, pos_y_int);
 
-        //Creating a temporary vector of region to manage
-        TEMP = region;
+        std::cout << "print flood fill vector: " << std::endl;
+        region.print();
 
         //Update the flood fill value of my current cell
         current_region = get_flood_fill_map_value(pos_x_int,pos_y_int);
-
-
-        //Iterator detects value of largest/smallest, *points to the value
-        MAX = max(region);
-        //MIN = min(region);
     }
 
     pos_x_int_last = pos_x_int;
@@ -371,104 +283,76 @@ void PathPlanner::set_next_destination_cell() {
 
     //Checking lowest value cell entry has a wall
     //Find the lowest entry without a registered wall
-    min_heading = arma_min_index(region); //returns the heading towards the cell with the lowest flood fill value
 
-    //Check if the point already exists in stack
-    //initialize last cell position
-    int last_cell_heading = 100; //ENDRE DENNE TIL NOE MER FORNUFTIG
-    //bool LAST_IN_STACK = check_stack(pos_x_int,pos_y_int,min_heading); // is true if the lowest flood fill value nearby is the cell we came from
-
-    while (wall_vec(min_heading) == WALL) {
-
-        /*
-        if (LAST_IN_STACK){
-            //Save last position as an alternative next destination
-            // store the heading where we came from
-            last_cell_heading = min_heading; //ER DETTE INNENFOR SCOPE
+    int minimumReachableFloodFillValue = 10000;
+    for (int i = 0; i < 4; i++){
+        if (hasWall(pos_x_int, pos_y_int, i)){
+            // ignore this direction
         }
-*/
-        region(min_heading) = MAX + 1; // does not want to evaluate this direction since it has a wall in the way
-        min_heading = arma_min_index(region); // finds the new nearby cell which has the minimum flood fill value
-        //LAST_IN_STACK = check_stack(pos_x_int,pos_y_int,min_heading);
-    }
-
-    //If the last cell in stack is the best flood fill alternative
-    //then return to last point
-
-    /*
-    if (TEMP(min_heading) > TEMP(last_cell_heading)){ //endre navn på temp
-        min_heading = last_cell_heading;
-    }
-
-     */
-    //New setpoint
-    if (min_heading == 0){
-        setpoint_y++;
-    }else if(min_heading == 1){
-        setpoint_x++;
-    }else if(min_heading == 2){
-        setpoint_y--;
-    }else{
-        setpoint_x--;
-    }
-
-    //If you new flood fill cell is equal to or higher than the
-    //than the current flood fill cell, update current cell value to value+1;
-    if (current_region <= get_flood_fill_map_value(setpoint_x,setpoint_y)){
-
-        //update current cell by (next cell + 1)
-        current_region = get_flood_fill_map_value(setpoint_x,setpoint_y)+1;
-
-        //Update flood fill map as well
-        set_flood_fill_map_value(pos_x_int, pos_y_int, current_region);
-        /*
-        //Add last position to stack
-        if (!(coordinate_visited.end() == std::make_pair(0,0) && coordinate_visited.size() == 1)) {
-            coordinate_visited.push_back(std::make_pair(pos_x_int, pos_y_int));
+        else{
+            //Evaluate if this is the next destination
+            int neighbourCellFloodFillValue = region(i);
+            if (neighbourCellFloodFillValue < minimumReachableFloodFillValue){
+                minimumReachableFloodFillValue = neighbourCellFloodFillValue;
+                min_heading = i;
+                std::cout << "n < m" << std::endl;
+            }
+            if (neighbourCellFloodFillValue == minimumReachableFloodFillValue){
+                std::cout << "n == m" << std::endl;
+                // prioritize another heading than where we came from
+                if(check_stack(pos_x_int, pos_y_int, min_heading)){
+                    min_heading = i;
+                    std::cout << "check stack true" << std::endl;
+                }
+            }
         }
-       */
     }
 
 
+        std::cout << "best heading: " << min_heading << std::endl;
 
-} //Function
+        //New setpoint
+        if (min_heading == 0) {
+            setpoint_y++;
+        } else if (min_heading == 1) {
+            setpoint_x++;
+        } else if (min_heading == 2) {
+            setpoint_y--;
+        } else {
+            setpoint_x--;
+        }
 
+        //If you new flood fill cell is equal to or higher than the
+        //than the current flood fill cell, update current cell value to value+1;
+        if (current_region <= get_flood_fill_map_value(setpoint_x, setpoint_y)) {
 
+            //update current cell by (next cell + 1)
+            current_region = get_flood_fill_map_value(setpoint_x, setpoint_y) + 1;
 
+            //Update flood fill map as well
+            set_flood_fill_map_value(pos_x_int, pos_y_int, current_region);
+            std::cout << "setting new flood fill value" << std::endl;
 
-    //North coordinate
+        }
 
+        //Add current position to stack
+        std::cout << "Adding current coordinate to stack" << std::endl;
+        coordinate_visited.push_back(std::make_pair(pos_x_int, pos_y_int));
 
-            // --> 3i.) Check flood fill matrix in surrounding cells
+        //Print flood fill
+        std::cout << "Flood fill map: " << std::endl;
+        flood_fill_map.print();
+        std::cout << std::endl;
+        //Print stack
+        printQueue(coordinate_visited);
 
-            // --> 3ii.) When all cells have been tracked, check if the lowest value cell has a wall
-
-                            // All ACCESSIBLE cell-values will be compared to my cell value
-                            // if, my cell value is lower than any surrounding cells
-                            // --> update the cell’s value to one greater than the minimum
-                            //value of its accessible neighbours
-
-                            // else if (one surrounding cell is lower than the others)
-                            // --> present this cell as next destination coordinate
-
-                            // else if (surrounding ACCESSIBLE cells have same value)
-                            // --> pick the cell you have not yet accessed
-
-            // --> 3iii.) Check only the the vector index of the wall closest to my cell position
-
-            // --> 3iii.) If, (the cell has a wall (is not open) closest to my current position)
-            // --> Then this cell is not ACCESSIBLE
-            //            else. --> cell is ACCESSIBLE
-
-
-
-
-    // 4.) Publish the next setpoint for the controller to read
+}
 
 
 
 
 void PathPlanner::initializeFloodFillMap(){
+
     flood_fill_map  << 8 << 7 << 6 << 5 << 4 << 5 << 6 << 7 << 8 << endr
                     << 7 << 6 << 5 << 4 << 3 << 4 << 5 << 6 << 7 << endr
                     << 6 << 5 << 4 << 3 << 2 << 3 << 4 << 5 << 6 << endr
@@ -478,15 +362,21 @@ void PathPlanner::initializeFloodFillMap(){
                     << 6 << 5 << 4 << 3 << 2 << 3 << 4 << 5 << 6 << endr
                     << 7 << 6 << 5 << 4 << 3 << 4 << 5 << 6 << 7 << endr
                     << 8 << 7 << 6 << 5 << 4 << 5 << 6 << 7 << 8 << endr;
+    /*
+    flood_fill_map      << 16 << 15 << 14 << 13 << 12 << 11 << 10 << 9 << 8 << endr
+                        << 15 << 14 << 13 << 12 << 11 << 10 << 9 << 8 << 7 << endr
+                        << 14 << 13 << 12 << 11 << 10 << 9 << 8 << 7 << 6 << endr
+                        << 13 << 12 << 11 << 10 << 9 << 8 << 7 << 6 << 5 << endr
+                        << 12 << 11 << 10 << 9 << 8 << 7 << 6 << 5 << 4 << endr
+                        << 11 << 10 << 9 << 8 << 7 << 6 << 5 << 4 << 3 << endr
+                        << 10 << 9 << 8 << 7 << 6 << 5 << 4 << 3 << 2 << endr
+                        << 9 << 8 << 7 << 6 << 5 << 4 << 3 << 2 << 1 << endr
+                        << 8 << 7 << 6 << 5 << 4 << 3 << 2 << 1 << 0 << endr;
+                        */
 
     std::cout << "Flood fill map initialized!" << std::endl;
-    std::cout <<  " Printed: " << std::endl;
+    //std::cout <<  " Printed: " << std::endl;
     //flood_fill_map.print();
-
-    //set_flood_fill_map_value(3,5,10);
-    //flood_fill_map(5,3) = 10;
-    //flood_fill_map.print();
-    //std::cout << "get_flood_fill_map_value(3,5) = " << get_flood_fill_map_value(3,5) << std::endl;
 }
 
 
@@ -497,7 +387,7 @@ void PathPlanner::set_flood_fill_map_value(int x_pos, int y_pos, int value){
 int PathPlanner::get_flood_fill_map_value(int x_pos, int y_pos){
 
     if (x_pos < 0 || y_pos < 0 || x_pos > 8 || y_pos > 8){
-        return 100;}
+        return 1000;}
     else{
     return flood_fill_map(8 - y_pos, x_pos);}
 }
@@ -529,40 +419,20 @@ void PathPlanner::set_wall(int pos_x_int, int pos_y_int, int direction){
         }
 
         std::cout << pos_x_int << ", " << pos_y_int << ")" << std::endl;
-        std::cout << "New wall map:" << std::endl;
-        //printWallMap();
-    }
-}
-
-int PathPlanner::arma_min_index(vec v){
-    int min = 3;
-    int TEMP = v(3);
-    for (int i = 0; i < 4;i++){
-        if (v(i) <= TEMP){
-            min = i;
-            TEMP = v(i);
-        }
         //std::cout << "New wall map:" << std::endl;
         //printWallMap();
-
     }
-    return min;
 }
 
-//Armadillo vector
-vec PathPlanner::get_wall(int pos_x_int, int pos_y_int){
 
-    int N = wall_map(pos_y_int,pos_x_int,0);
-    int E = wall_map(pos_y_int,pos_x_int,1);
-    int S = wall_map(pos_y_int,pos_x_int,2);
-    int W = wall_map(pos_y_int,pos_x_int,3);
-
-    vec wall;
-    wall << N << E << S << W << endr;
-
-    return wall;
+bool PathPlanner::hasWall(int pos_x_int, int pos_y_int, int direction){
+    if (wall_map(pos_y_int, pos_x_int, direction) == WALL){
+        return true;
+    }
+    else{
+        return false;
+    }
 }
-
 
 void PathPlanner::check_for_walls(){
     int pos_x_int = (int) round(pos_x);
@@ -587,40 +457,40 @@ void PathPlanner::check_for_walls(){
     else if (ang_z_deg < -87 && ang_z_deg > -93){
         direction = 3; // West
     }
-/*
-    if (dist_mid < 1.5 && direction != -1){
-        set_wall(pos_x_int, pos_y_int, direction);
-    }else if(direction != -1){
-        sector_checked = true;
-    }else{sector_checked = false;}
-*/
+
     // Check if x and y coordinate is close to a node position. Close = within 0.4m x 0.4m square around node position
     // If so, we want to check for walls while being close to this point
     if (fabs(pos_y_int - pos_y) < 0.4 && fabs(pos_x_int - pos_x) < 0.4){
         // Check for walls in front:
-        if (dist_mid < 1.2 && direction != -1){
-            std::cout << "Found wall in front" << std::endl;
+        if (dist_mid < 0.8 && direction != -1){
+            if (hasWall(pos_x_int,pos_y_int, direction)){std::cout << "Found wall in front of current node" << std::endl;}
             set_wall(pos_x_int, pos_y_int, direction);
+        }
+        else if (dist_mid < 1.5 && direction != -1){
+            if (hasWall(setpoint_x_int,setpoint_y_int, direction)){std::cout << "Found wall in front of setpoint node" << std::endl;}
+            set_wall(setpoint_x_int, setpoint_y_int, direction);
         }
     }
 
     // Check for walls adjacent to the node we are going to if we are close to the coordinate in between the setpoints
-    if (fabs((setpoint_x*0.2 + setpoint_x_prev*0.8) - pos_x) < 0.1 && fabs((setpoint_y*0.2 + setpoint_y_prev*0.8) - pos_y) < 0.1){
+    if (fabs((setpoint_x*0.3 + setpoint_x_prev*0.7) - pos_x) < 0.05 && fabs((setpoint_y*0.3 + setpoint_y_prev*0.7) - pos_y) < 0.05){
         // Check for walls to the side of the node front of the current position
 
-        if (dist_left < 1.4 && direction != -1){
-            std::cout << "Found wall left" << std::endl;
+        if (dist_left < 1.2 && direction != -1){
+
             // Wall left for the node in front
             int wall_direction = direction - 1; // Direction shifted counterclockwise since wall to left
             if (wall_direction < 0 ){wall_direction = 3;} // If we go from north(=0) to west(=3)
+            if (hasWall(setpoint_x_int,setpoint_y_int, wall_direction)){std::cout << "Found wall left" << std::endl;}
             set_wall(setpoint_x_int, setpoint_y_int, wall_direction);
         }
 
-        if (dist_right < 1.4 && direction != -1){
-            std::cout << "Found wall right" << std::endl;
+        if (dist_right < 1.2 && direction != -1){
+
             // Wall right for the node in front
             int wall_direction = direction + 1; // Direction shifted clockwise since wall to right
             if (wall_direction > 3 ){wall_direction = 0;} // If we go from west(=3) to north(=0)
+            if (hasWall(setpoint_x_int,setpoint_y_int, wall_direction)){std::cout << "Found wall right" << std::endl;}
             set_wall(setpoint_x_int, setpoint_y_int, wall_direction);
         }
 
