@@ -20,6 +20,8 @@ using namespace std;
 using namespace arma;
 enum {OPEN = 0, WALL = 1};
 
+//#define PI          3.14159265
+
 class PathPlanner{
 private:
     ros::Subscriber sub_pos;
@@ -29,6 +31,7 @@ private:
 
     int pos_x_int_last, pos_y_int_last, setpoint_x, setpoint_y, setpoint_x_prev, setpoint_y_prev;
     double pos_x, pos_y, ang_z, THRESHOLD_SWITCH, dt, PI, dist_mid, dist_left, dist_right;
+    double dist_side_max;
     cube wall_map;
 
     //Flood fill
@@ -75,6 +78,7 @@ PathPlanner::PathPlanner(ros::NodeHandle &nh){
     dist_left = 3;
     setpoint_x = 0;
     setpoint_y = 0;
+    dist_side_max = 1.1;
 
     // Defining subscribers and publishers:
     sub_pos = nh.subscribe("/odom",1,&PathPlanner::callbackOdom, this);
@@ -138,6 +142,19 @@ void PathPlanner::callbackDistances( const std_msgs::Float32MultiArray& distMsg)
     dist_mid = distMsg.data[1];
     dist_left = distMsg.data[0];
     dist_right = distMsg.data[2];
+
+    // Use the distance to the left to estimate the wall thickness.
+    // Use this wall thickness to find a limit which determines if we measure an open space or wall
+    // when doing wall detection
+    static bool initialized = false;
+    if (!initialized){
+        double wall_thickness = 1 - 2 * dist_left * cos(60.0 * PI / 180.0);
+        double alpha = (1.2 - 0.85) / (0.29 - 0.19);
+        dist_side_max = 1.2 - alpha * (wall_thickness - 0.19);
+        std::cout << "Estimated wall thickness: " << wall_thickness << " meters " << std::endl;
+        std::cout << "Gives dist_side_max = " << dist_side_max << std::endl;
+        initialized = true;
+    }
 }
 
 void PathPlanner::initializeWallMap(){
@@ -467,7 +484,7 @@ void PathPlanner::checkForWalls(){
     if (fabs((setpoint_x*0.3 + setpoint_x_prev*0.7) - pos_x) < 0.05 && fabs((setpoint_y*0.3 + setpoint_y_prev*0.7) - pos_y) < 0.05){
         // Check for walls to the side of the node front of the current position
 
-        if (dist_left < 1.2 && direction != -1){
+        if (dist_left < dist_side_max && direction != -1){
 
             // Wall left for the node in front
             int wall_direction = direction - 1; // Direction shifted counterclockwise since wall to left
@@ -476,7 +493,7 @@ void PathPlanner::checkForWalls(){
             setWall(setpoint_x, setpoint_y, wall_direction);
         }
 
-        if (dist_right < 1.2 && direction != -1){
+        if (dist_right < dist_side_max && direction != -1){
 
             // Wall right for the node in front
             int wall_direction = direction + 1; // Direction shifted clockwise since wall to right
@@ -511,8 +528,8 @@ void PathPlanner::updateFloodFillMap(){
         int x_queue, y_queue;
         for (unsigned i=0; i < queue_length; i++){
             node = flood_fill_queue.at(i);
-            std::cout << "nrVisited: " << nrVisited << "\t Visiting (x,y)=(" << node.first << ", " << node.second;
-            std::cout << ") and assigning it the value " << distance_from_goal_to_node << std::endl;
+            //std::cout << "nrVisited: " << nrVisited << "\t Visiting (x,y)=(" << node.first << ", " << node.second;
+            //std::cout << ") and assigning it the value " << distance_from_goal_to_node << std::endl;
             setFloodFillMapValue(node.first, node.second, distance_from_goal_to_node);
             visited_flood_fill_map(node.first, node.second) = 1; //visited
             nrVisited++;
@@ -523,7 +540,7 @@ void PathPlanner::updateFloodFillMap(){
             node = flood_fill_queue.at(j);
             for (int i = 0; i < 4; i++){ // Check in all 4 directions for unvisited open space, and if so, add to queue
                 if (!hasWall(node.first, node.second, i)){
-                    std::cout << "Open space in direction " << i << " to position (" << node.first << ", " << node.second << ")" << std::endl;
+                    //std::cout << "Open space in direction " << i << " to position (" << node.first << ", " << node.second << ")" << std::endl;
                     if (i == 0){x_queue = node.first;       y_queue = node.second + 1;}
                     if (i == 1){x_queue = node.first + 1;   y_queue = node.second;}
                     if (i == 2){x_queue = node.first;       y_queue = node.second - 1;}
@@ -545,9 +562,9 @@ void PathPlanner::updateFloodFillMap(){
 
         // Next iteration in breadth first search. Increase the distance
         distance_from_goal_to_node++;
-        std::cout << "Increase distance_from_goal_to_node to: " << distance_from_goal_to_node << std::endl;
+        //std::cout << "Increase distance_from_goal_to_node to: " << distance_from_goal_to_node << std::endl;
 
-        printQueue(flood_fill_queue);
+        //printQueue(flood_fill_queue);
     }
 }
 
