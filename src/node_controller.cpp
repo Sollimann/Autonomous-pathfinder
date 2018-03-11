@@ -131,7 +131,7 @@ void Control::calculate_speed(){
     //Compute gain
     if (fabs(error_heading) > 0.05) {
 
-        if (fabs(error_heading) > 0.14cd) {
+        if (fabs(error_heading) > 0.14) {
             //heading
             trans_heading = -Kp_ang * error_heading - Ki_ang * I_heading;
             std::cout << "trans_heading before: " << trans_heading;
