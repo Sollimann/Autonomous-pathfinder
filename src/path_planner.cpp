@@ -55,7 +55,7 @@ public:
     bool isPreviousPosition(int x_pos, int y_pos, int heading);
     void setNextDestinationCell();
     void updateFloodFillMap();
-    //void visitNode(int x_pos, int y_pos);
+    double getManhattanDistance(double x_pos, double y_pos);
 
 };
 
@@ -254,6 +254,7 @@ void PathPlanner::setNextDestinationCell() {
     // 1.) Detect my current cell
     int pos_x_int = (int) round(pos_x);
     int pos_y_int = (int) round(pos_y);
+    double manhattan_distance = 1000;
 
     // 2.) Update the stack with all visited locations
     neighbour_flood_fill_values(0) = getFloodFillMapValue(pos_x_int, pos_y_int + 1);
@@ -272,14 +273,30 @@ void PathPlanner::setNextDestinationCell() {
     for (int i = 0; i < 4; i++){
         if (!hasWall(pos_x_int, pos_y_int, i)){
             //Evaluate if this is the next destination
+            double x_next, y_next;
+            if (i == 0){x_next = pos_x_int;       y_next = pos_y_int + 1;}
+            if (i == 1){x_next = pos_x_int + 1;   y_next = pos_y_int;}
+            if (i == 2){x_next = pos_x_int;       y_next = pos_y_int - 1;}
+            if (i == 3){x_next = pos_x_int - 1;   y_next = pos_y_int;}
+
             int neighbourCellFloodFillValue = neighbour_flood_fill_values(i);
             if (neighbourCellFloodFillValue < minimumReachableFloodFillValue){
                 minimumReachableFloodFillValue = neighbourCellFloodFillValue;
                 min_heading = i;
                 std::cout << "n < m" << std::endl;
+                manhattan_distance = getManhattanDistance(x_next, y_next);
             }
             else if (neighbourCellFloodFillValue == minimumReachableFloodFillValue){
                 std::cout << "n == m" << std::endl;
+
+                // Choose the heading which minimizes (pos_x - pos_x_goal)^2 + (pos_y - pos_y_goal)^2
+                double manhattan_distance_new = getManhattanDistance(x_next, y_next);
+                if (manhattan_distance_new < manhattan_distance){
+                    min_heading = i;
+                    manhattan_distance = manhattan_distance_new;
+                    std::cout << "Choosing heading " << i << " since it minimizes Manhattan distance" << std::endl;
+                }
+
                 // Prioritize another heading than where we came from
                 if(isPreviousPosition(pos_x_int, pos_y_int, min_heading)){
                     min_heading = i;
@@ -532,6 +549,10 @@ void PathPlanner::updateFloodFillMap(){
 
         printQueue(flood_fill_queue);
     }
+}
+
+double PathPlanner::getManhattanDistance(double x_pos, double y_pos){
+    return sqrt((x_pos - 4) * (x_pos - 4) + (y_pos - 4) * (y_pos - 4));
 }
 
 
