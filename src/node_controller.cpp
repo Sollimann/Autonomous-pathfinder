@@ -19,7 +19,7 @@ private:
     ros::Subscriber sub_position;
 
     double trans_x, trans_heading, I_heading, I_pos, dt;
-    double pos_x, pos_y, heading, setpoint_x, setpoint_y, setpoint_heading;
+    double pos_x, pos_y, heading, setpoint_x, setpoint_y,setpoint_x_last,setpoint_y_last, setpoint_heading;
     double error_x,error_y, error_heading, error_pos,error_pos_prev;
     double PI, Kp_fwd, Kp_ang, Ki_ang, Ki_fwd, Kd_fwd;
 
@@ -54,11 +54,11 @@ Control::Control(ros::NodeHandle nh) {
     I_heading = 0;
     I_pos = 0;
     dt = 0.1; //10Hz
-    Kp_ang = 0.35; //Heading gain     //0.3 - 0.35
-    Ki_ang = 0.05;                   //0.05 - 0.05
-    Kp_fwd = 0.1; //Forward gain       //0.1 - 0.1
-    Ki_fwd = 0.001;                    //0.0 - 0.001
-    Kd_fwd = 0.05;                    //0.05 - 0.05
+    Kp_ang = 0.25; //Heading gain     //0.45 -
+    Ki_ang = 0.020;                   //0.015 -
+    Kp_fwd = 0.40; //Forward gain     //0.4 -
+    Ki_fwd = 0.025;                    //0.015 -
+    Kd_fwd = 0.09;                    //0.05 -
 
     // Callback updates set point position in x and y
     sub_position = nh.subscribe("pathplanner/x_y_yaw",1,&Control::get_position,this);
@@ -97,6 +97,13 @@ void Control::calculate_speed(){
     error_pos = sqrt(error_x * error_x + error_y * error_y);
     error_heading = setpoint_heading - heading;
 
+    //if new setpoint, delete integral term
+    if (error_pos > 0.4) {
+        I_heading = 0;
+        I_pos = 0;
+        std::cout << "ERROR POS LARGER THAN 0.4 " << std::endl;
+    }
+
     // Heading is defined as [-pi, pi], so the error can not be less than -pi or greater than pi:
     if (error_heading < -PI)
     {
@@ -111,36 +118,51 @@ void Control::calculate_speed(){
     I_heading += dt * error_heading;
     I_pos += dt * error_pos;
 
-/*
+
     std::cout << "Proportional_fwd: " << Kp_fwd * error_pos << std::endl;
     std::cout << "Integral_fwd: " << Ki_fwd * I_pos << std::endl;
     std::cout << "Derivate_fwd: " << Kd_fwd * (error_pos_prev - error_pos) << std::endl;
     std::cout << "Proportional_head: " << -Kp_ang * error_heading<< std::endl;
     std::cout << "Integral_head: " << - Ki_ang * I_heading << std::endl;
 
-*/
 
+    //std::cout << "P_heading: " << Kp_ang * error_heading << " , I_heading: " << Ki_ang * I_heading << std::endl;
+    //std::cout << "P_fwd: " << Kp_fwd * error_pos << " , I_fwd: " << I_pos + Kd_fwd << " D_fwd: "  << Kd_fwd * (error_pos_prev - error_pos) << std::endl;
     //Compute gain
-    if (fabs(error_heading) > 0.10) {
-        //heading
-        trans_heading = -Kp_ang * error_heading - Ki_ang * I_heading;
-        std::cout << "trans_heading before: " << trans_heading;
-        trans_heading *= pow(2.0,fabs(trans_heading)+1.0);
-        std::cout << " ->   trans_heading after: " << trans_heading << std::endl;
+    if (fabs(error_heading) > 0.05) {
 
-        //velocity
-        trans_x = Kp_fwd * error_pos + Ki_fwd * I_pos + Kd_fwd * (error_pos_prev - error_pos);
-        std::cout << "trans_x before: " << trans_x;
-        trans_x *= (1.0/pow(4.0,fabs(trans_heading)+1.0));
-        std::cout << " ->   trans_x after: " << trans_x << std::endl;
+        if (fabs(error_heading) > 0.14cd) {
+            //heading
+            trans_heading = -Kp_ang * error_heading - Ki_ang * I_heading;
+            std::cout << "trans_heading before: " << trans_heading;
+            trans_heading *= pow(3.0, fabs(trans_heading) + 1.0);
+            std::cout << " ->   trans_heading after: " << trans_heading << std::endl;
+
+            //velocity
+            trans_x = Kp_fwd * error_pos + Ki_fwd * I_pos + Kd_fwd * (error_pos_prev - error_pos);
+            std::cout << "trans_x before: " << trans_x;
+            trans_x *= (1.0 / pow(8.0, fabs(trans_heading) + 1.0));
+            std::cout << " ->   trans_x after: " << trans_x << std::endl;
+
+            std::cout << "Trans error 1 " << std::endl;
+
+        }else{
+            //heading
+            trans_heading = -Kp_ang * error_heading - Ki_ang * I_heading;
+            trans_heading *= pow(3.0, fabs(trans_heading) + 1.0);
+            //velocity
+            trans_x = Kp_fwd * error_pos + Ki_fwd * I_pos + Kd_fwd * (error_pos_prev - error_pos);
+            trans_x *= (1.0 / pow(1.5, fabs(trans_heading) + 1.0));
+            std::cout << "Trans error 2" << std::endl;
+        }
     }
     else{
         trans_heading = -Kp_ang * error_heading - Ki_ang * I_heading;
         trans_x = Kp_fwd * error_pos + Ki_fwd * I_pos + Kd_fwd * (error_pos_prev - error_pos);
     }
 
-    std::cout << "trans_heading: " << trans_heading * 180.0 / PI << " deg/s " << std::endl;
-    std::cout << "trans_x: " << trans_x << " m/s " << std::endl;
+   // std::cout << "trans_heading: " << trans_heading * 180.0 / PI << " deg/s " << std::endl;
+   // std::cout << "trans_x: " << trans_x << " m/s " << std::endl;
 
     /*
     std::cout << "---------------------------------" << std::endl;
@@ -156,9 +178,14 @@ void Control::calculate_speed(){
     std::cout << "trans_x: " << trans_x << " m/s " << std::endl;
 */
 
-    base_cmd.linear.x = trans_x;
-    base_cmd.angular.z = trans_heading;
-    pub_control_speed.publish(base_cmd);
+    if (floor(pos_x) == 4 && floor(pos_y) == 3){
+        base_cmd.linear.x = 0;
+        base_cmd.angular.z = 0.7;
+    }else {
+        base_cmd.linear.x = trans_x;
+        base_cmd.angular.z = trans_heading;
+    }
+        pub_control_speed.publish(base_cmd);
 }
 
 

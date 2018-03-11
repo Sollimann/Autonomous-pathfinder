@@ -149,7 +149,7 @@ void PathPlanner::callbackDistances( const std_msgs::Float32MultiArray& distMsg)
     static bool initialized = false;
     if (!initialized){
         double wall_thickness = 1 - 2 * dist_left * cos(60.0 * PI / 180.0);
-        double alpha = (1.2 - 0.85) / (0.29 - 0.19);
+        double alpha = (1.2 - 0.80) / (0.29 - 0.19);
         dist_side_max = 1.2 - alpha * (wall_thickness - 0.19);
         std::cout << "Estimated wall thickness: " << wall_thickness << " meters " << std::endl;
         std::cout << "Gives dist_side_max = " << dist_side_max << std::endl;
