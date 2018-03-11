@@ -19,14 +19,23 @@ Robot Operating System (ROS) Kinetic distribution installed.
 	$ git clone https://github.com/Sollimann/rosproject1
 	```
 
-2. Run project_init.sh: 
+2. Run project\_init.sh or project\_init\_world_2.sh to lauch either world 1 or 2:
 	```bash
 	$ chmod +x project_init.sh
 	$ ./project_init.sh
 	```
+or
+
+	```bash
+	$ chmod +x project_init_world_2.sh
+	$ ./project_init_world_2.sh
+	```
 
 This will launch the turtlebot world. It may take several minuites to load, so be patient! 
 
-3. Launch the launch file to make the turtlebot navigate towards the target position:
-$ roslaunch rosproject1 launch_file_name 
+3. Launch the launch file navigate\_to\_goal.launch to make the turtlebot navigate towards the target position:
+
+	```bash
+	$ roslaunch rosproject1 navigate_to_goal.launch 
+	```
 
