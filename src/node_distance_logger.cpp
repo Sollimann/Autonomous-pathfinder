@@ -104,6 +104,10 @@ void DistanceLogger::callback_distance_logger(const sensor_msgs::LaserScan::Cons
         initialized = true;
     }
 
+    scan_left_prev = scan_left;
+    scan_middle_prev = scan_middle;
+    scan_right_prev = scan_right;
+
     std::cout << "------------------------------" << std::endl;
     std_msgs::Float32MultiArray cmd_distances;
     cmd_distances.data.clear();
