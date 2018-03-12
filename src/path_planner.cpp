@@ -121,8 +121,11 @@ void PathPlanner::callbackOdom( const nav_msgs::OdometryConstPtr& poseMsg){
             setNextDestinationCell();
         }
         else{
-            std::cout << "Goal reached!" << std::endl;
+            if (goal_reached == GOAL_NOT_REACHED){
+                std::cout << "Goal reached!" << std::endl;
+            }
             goal_reached = GOAL_REACHED;
+
         }
     }
 
