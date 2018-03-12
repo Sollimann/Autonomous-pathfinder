@@ -14,12 +14,22 @@ Robot Operating System (ROS) Kinetic distribution installed.
 
 ## How to run the code ## 
 -------------------------
-1. Clone the repository: 
+1. Enter your source folder inside your catkin workspace:
+	```bash
+	$ cd catkin_ws/src
+	```
+
+2. Clone the repository: 
 	```bash
 	$ git clone https://github.com/Sollimann/prj-grp-01
 	```
 
-2. Run project\_init.sh or project\_init\_world_2.sh to lauch either world 1 or 2:
+3. Inside your catkin workspace, run:
+	```bash
+	$catkin_ws catkin_make
+	```
+
+4. Run project\_init.sh or project\_init\_world_2.sh to lauch either world 1 or 2:
 	```bash
 	$ chmod +x project_init.sh
 	$ ./project_init.sh
@@ -33,7 +43,7 @@ or
 
 This will launch the turtlebot world. It may take several minuites to load, so be patient! 
 
-3. Launch the launch file navigate\_to\_goal.launch to make the turtlebot navigate towards the target position:
+5. Launch the launch file navigate\_to\_goal.launch to make the turtlebot navigate towards the target position:
 
 	```bash
 	$ roslaunch prj-grp-01 navigate_to_goal.launch 
