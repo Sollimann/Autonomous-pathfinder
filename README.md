@@ -36,6 +36,6 @@ This will launch the turtlebot world. It may take several minuites to load, so b
 3. Launch the launch file navigate\_to\_goal.launch to make the turtlebot navigate towards the target position:
 
 	```bash
-	$ roslaunch rosproject1 navigate_to_goal.launch 
+	$ roslaunch PRJ-GRP-01 navigate_to_goal.launch 
 	```
 
