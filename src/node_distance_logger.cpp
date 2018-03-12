@@ -1,6 +1,6 @@
 /* This node returns an array with distances from the scan topic:
 The leftmost measured distance, middle distance and rightmost distance in
-the new topic distancelogger/distances which is a message of type
+the new topic distance_logger/distances which is a message of type
 Float32MultiArray. The distances is stored in the "data" sub-message
 within the topic, as [left, middle, right]
  If the message from /scan returns "nan", this node will either set the distance
@@ -11,15 +11,9 @@ within the topic, as [left, middle, right]
 #include <geometry_msgs/Twist.h>
 #include <geometry_msgs/Point.h>
 #include <nav_msgs/Odometry.h>
-#include <sensor_msgs/image_encodings.h>
-#include <iostream>
 #include <tf/tfMessage.h>
 #include <tf/transform_datatypes.h>
-#include <cmath>
 #include <sensor_msgs/LaserScan.h>
-#include <algorithm>
-#include <vector>
-#include <math.h>
 #include <armadillo>
 #include <std_msgs/Float32MultiArray.h>
 
