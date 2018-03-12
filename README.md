@@ -16,7 +16,7 @@ Robot Operating System (ROS) Kinetic distribution installed.
 -------------------------
 1. Clone the repository: 
 	```bash
-	$ git clone https://github.com/Sollimann/PRJ-GRP-01
+	$ git clone https://github.com/Sollimann/prj-grp-01
 	```
 
 2. Run project\_init.sh or project\_init\_world_2.sh to lauch either world 1 or 2:
@@ -36,6 +36,6 @@ This will launch the turtlebot world. It may take several minuites to load, so b
 3. Launch the launch file navigate\_to\_goal.launch to make the turtlebot navigate towards the target position:
 
 	```bash
-	$ roslaunch PRJ-GRP-01 navigate_to_goal.launch 
+	$ roslaunch prj-grp-01 navigate_to_goal.launch 
 	```
 
