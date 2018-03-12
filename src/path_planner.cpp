@@ -242,12 +242,9 @@ void PathPlanner::setNextDestinationCell() {
             if (neighbourCellFloodFillValue < minimumReachableFloodFillValue){
                 minimumReachableFloodFillValue = neighbourCellFloodFillValue;
                 min_heading = i;
-                std::cout << "n < m" << std::endl;
                 manhattan_distance = getManhattanDistance(x_next, y_next);
             }
             else if (neighbourCellFloodFillValue == minimumReachableFloodFillValue){
-                std::cout << "n == m" << std::endl;
-
                 // Choose the heading which minimizes (pos_x - pos_x_goal)^2 + (pos_y - pos_y_goal)^2
                 double manhattan_distance_new = getManhattanDistance(x_next, y_next);
                 if (manhattan_distance_new < manhattan_distance){
@@ -523,8 +520,6 @@ void PathPlanner::updateFloodFillMap(){
 
         // Next iteration in breadth first search. Increase the distance
         distance_from_goal_to_node++;
-        //std::cout << "Increase distance_from_goal_to_node to: " << distance_from_goal_to_node << std::endl;
-        //printQueue(flood_fill_queue);
 
         if (distance_from_goal_to_node > total_nr_of_nodes){
             // Some detected walls must be wrong, or there is a node in the map which cant be reached.
