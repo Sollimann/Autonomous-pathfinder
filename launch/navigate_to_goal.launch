@@ -2,7 +2,7 @@
 <launch> 
 <node pkg="rosproject1" type="node_distance_logger" name="node_distance_logger"> 
 </node> 
-<node pkg="rosproject1" type="path_planner_node" name="path_planner_node"> 
+<node pkg="rosproject1" type="path_planner_node" name="path_planner_node" output="screen">
 </node> 
 <node pkg="rosproject1" type="node_controller" name="node_controller"> 
 </node> 
