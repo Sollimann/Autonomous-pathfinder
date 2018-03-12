@@ -16,7 +16,7 @@ Robot Operating System (ROS) Kinetic distribution installed.
 -------------------------
 1. Clone the repository: 
 	```bash
-	$ git clone https://github.com/Sollimann/rosproject1
+	$ git clone https://github.com/Sollimann/PRJ-GRP-01
 	```
 
 2. Run project\_init.sh or project\_init\_world_2.sh to lauch either world 1 or 2:
